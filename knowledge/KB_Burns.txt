@@ -1,0 +1,7 @@
+# Burns - 1st, 2nd, 3rd degree branching
+#
+# PLACEHOLDER — paste extracted Botpress content here.
+# Original format used buttons/quick replies; convert each into
+# a spoken question per project brief section 7.3, e.g.:
+#   Botpress: "1st degree / 2nd degree / 3rd degree" (buttons)
+#   Voice:    "How severe does the burn look? Is it red, blistered, or charred?"

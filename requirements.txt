@@ -1,0 +1,29 @@
+# Web framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+
+# Twilio
+twilio>=9.3.0
+
+# Deepgram (STT + TTS)
+deepgram-sdk>=3.7.0
+
+# Groq (LLM)
+groq>=0.11.0
+
+# Async HTTP client (used instead of requests)
+httpx>=0.27.0
+
+# Config / env management
+python-dotenv>=1.0.1
+pydantic-settings>=2.5.0
+
+# Form parsing (Twilio sends application/x-www-form-urlencoded webhooks)
+python-multipart>=0.0.12
+
+# WebSockets (Twilio Media Streams + Deepgram streaming STT)
+websockets>=13.0
+
+# audioop was removed from the stdlib in Python 3.13+ (PEP 594).
+# This backport is required for mu-law <-> PCM conversion of Twilio audio.
+audioop-lts>=0.2.1; python_version >= "3.13"

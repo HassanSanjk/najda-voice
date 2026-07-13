@@ -1,0 +1,7 @@
+# Snake bites - venomous vs non-venomous
+#
+# PLACEHOLDER — paste extracted Botpress content here.
+# Original format used buttons/quick replies; convert each into
+# a spoken question per project brief section 7.3, e.g.:
+#   Botpress: "Venomous / Non-venomous / Unknown" (buttons)
+#   Voice:    "Do you know if the snake was venomous, or are you not sure?"

@@ -1,0 +1,40 @@
+# Environment
+.env
+.env.local
+venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Twilio recordings / audio dumps (if saved locally during dev)
+recordings/
+*.wav
+*.mp3
+
+# AWS / deployment
+*.pem
+
+# App logs (keep the folder, ignore contents)
+logs/*
+!logs/.gitkeep
