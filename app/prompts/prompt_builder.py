@@ -1,18 +1,16 @@
 """
 Prompt assembly.
 
-File-reading and history-formatting plumbing is implemented now since
-it doesn't depend on any external API. KB-scenario matching (choosing
-which of the 8 knowledge/ files is relevant to the caller's situation)
-is stubbed until Day 9, once the KB content itself is filled in.
+Day 9 status: KB content now loads from real YAML files (see
+kb_loader.py) and is matched to the caller's actual situation via
+keyword detection, replacing the Day 1 stub that concatenated all 8
+placeholder files on every turn. Only the matched scenario's content
+is injected, keeping the prompt focused and token-cheap.
 """
-
-from pathlib import Path
 
 from app.core.language import get_system_prompt_path
 from app.models.schemas import Turn
-
-KNOWLEDGE_DIR = Path(__file__).parent.parent.parent / "knowledge"
+from app.prompts import kb_loader
 
 
 def load_system_prompt(language: str) -> str:
@@ -20,20 +18,14 @@ def load_system_prompt(language: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def load_knowledge_context(scenario_hint: str | None = None) -> str:
+def load_knowledge_context(scenario_hint: str | None, language: str) -> str:
     """
-    Loads relevant KB content to inject into the prompt.
-
-    Stubbed scenario matching for now — Day 9 will implement real
-    keyword/intent matching (e.g. detecting "bleeding" in the transcript
-    -> load only bleeding.yaml). Currently concatenates all KB files,
-    which works but is token-expensive; fine for early pipeline testing,
-    must be replaced before Day 9 is done.
+    scenario_hint is a matched KB filename (e.g. "KB_Bleeding.yaml") if
+    one's been detected this call, or None if not yet known.
     """
-    contents = []
-    for kb_file in sorted(KNOWLEDGE_DIR.glob("*.yaml")):
-        contents.append(kb_file.read_text(encoding="utf-8"))
-    return "\n\n".join(contents)
+    if scenario_hint:
+        return kb_loader.format_kb_for_prompt(scenario_hint, language)
+    return kb_loader.format_generic_router(language)
 
 
 def build_messages(
@@ -41,12 +33,10 @@ def build_messages(
     history: list[Turn],
     scenario_hint: str | None = None,
 ) -> list[dict]:
-    """
-    Assembles the final message list sent to Groq:
-        [system prompt + KB context] + [conversation history]
-    """
     system_content = (
-        load_system_prompt(language) + "\n\n" + load_knowledge_context(scenario_hint)
+        load_system_prompt(language)
+        + "\n\n"
+        + load_knowledge_context(scenario_hint, language)
     )
 
     messages = [{"role": "system", "content": system_content}]

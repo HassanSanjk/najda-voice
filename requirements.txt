@@ -24,6 +24,12 @@ python-multipart>=0.0.12
 # WebSockets (Twilio Media Streams + Deepgram streaming STT)
 websockets>=13.0
 
+# ElevenLabs (Arabic TTS - Deepgram Aura has no Arabic voice)
+elevenlabs
+
+# Knowledge base YAML parsing
+pyyaml>=6.0
+
 # audioop was removed from the stdlib in Python 3.13+ (PEP 594).
 # This backport is required for mu-law <-> PCM conversion of Twilio audio.
 audioop-lts>=0.2.1; python_version >= "3.13"

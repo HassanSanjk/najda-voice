@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     # Groq
     groq_api_key: str = ""
 
+    # ElevenLabs (Arabic TTS — Deepgram Aura has no Arabic voice)
+    elevenlabs_api_key: str = ""
+    elevenlabs_voice_id_ar: str = ""
+
     # App
     app_env: str = "development"
     public_base_url: str = ""
@@ -20,10 +24,6 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     def ws_base_url(self) -> str:
-        """
-        Converts public_base_url (http/https) into a ws/wss URL
-        for Twilio Media Streams to connect to.
-        """
         url = self.public_base_url.rstrip("/")
         if url.startswith("https://"):
             return "wss://" + url[len("https://"):]
@@ -32,11 +32,6 @@ class Settings(BaseSettings):
         return url
 
     def validate_required(self, keys: list[str]) -> None:
-        """
-        Fail fast if specific settings are missing. Call this before
-        features that need them (e.g. before accepting real calls),
-        not at import time, so /health works even with a bare .env.
-        """
         missing = [k for k in keys if not getattr(self, k, "")]
         if missing:
             raise RuntimeError(
