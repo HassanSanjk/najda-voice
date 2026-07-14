@@ -32,6 +32,10 @@ KNOWLEDGE_DIR = Path(__file__).parent.parent.parent / "knowledge"
 
 # Used only for KB files that don't define their own `keywords` field.
 # Not exhaustive -- expand based on what real callers actually say.
+# Single-word keywords, not phrases — avoids word-order sensitivity and
+# contraction misses ("can't" vs "cannot", "broken arm" vs "arm is broken").
+# Normalization (apostrophe removal) happens before matching so both
+# forms hit the same entries.
 KEYWORDS_FALLBACK = {
     "bleeding": {
         "en": ["bleed", "bleeding", "blood", "cut", "wound", "gash"],
@@ -42,28 +46,28 @@ KEYWORDS_FALLBACK = {
         "ar": ["حرق", "حروق", "احتراق"],
     },
     "choking": {
-        "en": ["choke", "choking", "can't breathe", "can not breathe", "breathe", "breathing", "stuck in throat", "airway blocked"],
-        "ar": ["اختناق", "شرقة", "لا يستطيع التنفس", "يختنق"],
+        "en": ["choke", "choking", "breathe", "breathing", "airway", "throat"],
+        "ar": ["اختناق", "شرقة", "تنفس", "يختنق"],
     },
     "cpr": {
-        "en": ["not breathing", "no pulse", "unconscious", "cpr", "heart stopped", "stopped breathing"],
-        "ar": ["لا يتنفس", "فاقد الوعي", "قلبه توقف", "إنعاش"],
+        "en": ["pulse", "unconscious", "cpr", "heart", "breathing"],
+        "ar": ["نبض", "فاقد الوعي", "قلب", "تنفس", "إنعاش"],
     },
     "electric_shock": {
-        "en": ["electric shock", "electrocuted", "shocked", "power line"],
-        "ar": ["صعقة كهربائية", "صعق", "كهرباء"],
+        "en": ["electric", "shock", "electrocuted", "power"],
+        "ar": ["كهرباء", "صعقة", "صعق"],
     },
     "fractures": {
-        "en": ["broken bone", "fracture", "broken arm", "broken leg", "broken", "break", "snapped"],
-        "ar": ["كسر", "عظمة مكسورة", "عظم مكسور"],
+        "en": ["broken", "fracture", "break", "snapped", "bone"],
+        "ar": ["كسر", "عظم"],
     },
     "snake_bites": {
-        "en": ["snake bite", "snake bit", "bitten by a snake"],
-        "ar": ["لدغة ثعبان", "عضة ثعبان"],
+        "en": ["snake", "bite", "bit", "bitten"],
+        "ar": ["ثعبان", "لدغة", "عضة"],
     },
     "allergic_reactions": {
-        "en": ["allergic", "allergy", "anaphylaxis", "swelling face", "hives", "epipen"],
-        "ar": ["حساسية", "تحسس", "تورم الوجه"],
+        "en": ["allergic", "allergy", "anaphylaxis", "hives", "epipen"],
+        "ar": ["حساسية", "تحسس", "تورم"],
     },
 }
 
@@ -80,13 +84,42 @@ def _all_kb_files() -> list[Path]:
     return sorted(KNOWLEDGE_DIR.glob("KB_*.yaml"))
 
 
+# Normalize common English contractions/apostrophes before matching,
+# so "can't" hits the same keywords as "cannot", etc.
+_APOSTROPHE_MAP = {
+    "can't": "cannot",
+    "won't": "will not",
+    "don't": "do not",
+    "doesn't": "does not",
+    "isn't": "is not",
+    "aren't": "are not",
+    "wasn't": "was not",
+    "weren't": "were not",
+    "hasn't": "has not",
+    "haven't": "have not",
+    "hadn't": "had not",
+    "couldn't": "could not",
+    "wouldn't": "would not",
+    "shouldn't": "should not",
+}
+
+
+def _normalize(text: str) -> str:
+    """Lowercase, expand contractions, strip stray apostrophes."""
+    text = text.lower()
+    for contraction, expanded in _APOSTROPHE_MAP.items():
+        text = text.replace(contraction, expanded)
+    text = text.replace("'", "")
+    return text
+
+
 def match_scenario(transcript: str, language: str) -> str | None:
     """
     Returns the matched KB filename (e.g. "KB_Bleeding.yaml") if the
     transcript mentions a known emergency, else None. First match wins
     if multiple scenarios happen to match the same transcript.
     """
-    text = transcript.lower()
+    text = _normalize(transcript)
 
     for path in _all_kb_files():
         kb = _load_yaml(path.name)

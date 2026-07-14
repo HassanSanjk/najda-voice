@@ -9,21 +9,10 @@ in blind Arabic-speaker preference tests but requires self-hosting,
 ruled out given this project's timeline; flagged as a possible future
 upgrade, not pursued now.
 
-Verified against ElevenLabs' current docs + Python SDK examples:
-- output_format="ulaw_8000" is a real, documented literal, purpose-built
-  for Twilio telephony — no audio conversion needed, same as the
-  Deepgram STT leg.
-- model_id="eleven_flash_v2_5" is a real, current model id.
-- language_code (ISO 639-1, e.g. "ar") enforces the target language.
-- client.text_to_speech.convert(...) on AsyncElevenLabs is awaited and
-  returns an ASYNC ITERATOR of audio byte chunks, not a single bytes
-  blob — this implementation collects all chunks before returning, to
-  match deepgram_tts.synthesize()'s single-bytes-return interface.
-
-CONFIDENCE NOTE: confirmed via multiple independent current sources
-(ElevenLabs' own docs + SDK examples), not verified by direct
-introspection the way deepgram_stt.py was (no tool access this
-session). Sanity-check the very first real audio output.
+Verified against installed elevenlabs SDK: convert() is an async
+generator yielding raw bytes chunks (same pattern as Deepgram's
+generate() — the SDK's own docstring example shows `await` on it,
+which is wrong). Must be iterated with `async for`, not `await`.
 """
 
 from elevenlabs.client import AsyncElevenLabs
@@ -54,15 +43,15 @@ async def synthesize(text: str, language: str = "ar") -> bytes:
             "into .env before Arabic calls can produce audio."
         )
 
-    audio_stream = await _client.text_to_speech.convert(
+    # convert() is an async generator (same pattern as Deepgram's
+    # generate()) — must be iterated with `async for`, not `await`.
+    chunks = []
+    async for chunk in _client.text_to_speech.convert(
         text=text,
         voice_id=settings.elevenlabs_voice_id_ar,
         model_id=MODEL_ID,
         output_format=OUTPUT_FORMAT,
         language_code=language,
-    )
-
-    chunks = []
-    async for chunk in audio_stream:
+    ):
         chunks.append(chunk)
     return b"".join(chunks)
