@@ -1,0 +1,22 @@
+services:
+  najda-voice:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    environment:
+      # Overrides whatever's in .env. Containers should never run with
+      # uvicorn's --reload -- it expects a live source mount for file
+      # watching, which this setup doesn't use, and burns extra
+      # resources on a t2.micro for zero benefit.
+      - APP_ENV=production
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s

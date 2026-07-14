@@ -38,3 +38,5 @@ recordings/
 # App logs (keep the folder, ignore contents)
 logs/*
 !logs/.gitkeep
+
+test_audio.raw
