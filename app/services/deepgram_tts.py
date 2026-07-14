@@ -1,25 +1,47 @@
 """
 Deepgram Aura TTS client.
 
-Interface finalized now; implementation lands Day 5.
-
 IMPORTANT: Deepgram Aura only supports English, Spanish, Dutch, French,
-German, Italian, and Japanese (verified against current docs). It has
-no Arabic voice. This client should only ever be called for English.
-Arabic responses must route through whatever provider gets chosen
-later (see app/core/language.py TTS_PROVIDER_BY_LANGUAGE) — do not
-add an "ar" branch here until that decision is made.
+German, Italian, and Japanese (verified against current docs — see
+app/core/language.py for the full note). It has no Arabic voice. This
+client only ever handles English; Arabic must route through whatever
+provider gets chosen later (still an open decision).
+
+CONFIDENCE NOTE: encoding/sample_rate/container parameter names below
+are inferred from strongly consistent cross-source evidence (Deepgram's
+REST parameter docs + a Node.js SDK example both use these exact names),
+but — unlike deepgram_stt.py, which was verified by directly
+introspecting the installed package — I could not introspect
+speak.v1.audio.generate()'s actual signature this session (no tool
+access). Sanity-check the first real audio output before building
+further on top of this: confirm it's raw headerless mu-law (no WAV
+header) and plays back cleanly. There's also a known Deepgram-reported
+artifact where mulaw+8kHz output has a small click/pop at the very
+start of speech — worth listening for, not something to pre-emptively
+work around.
 """
+
+from deepgram import AsyncDeepgramClient
 
 from config import settings
 
-SUPPORTED_LANGUAGES = {"en"}  # extend only if Aura adds more AND we confirm it
+SUPPORTED_LANGUAGES = {"en"}
+
+# Deepgram Aura-2 voice. Confirmed real model id.
+VOICE_MODEL = "aura-2-asteria-en"
+
+# Twilio Media Streams expects 8kHz mu-law, no container/header.
+SAMPLE_RATE = 8000
+ENCODING = "mulaw"
+
+_client = AsyncDeepgramClient(api_key=settings.deepgram_api_key)
 
 
 async def synthesize(text: str, language: str = "en") -> bytes:
     """
-    Sends text to Deepgram Aura and returns synthesized audio bytes
-    in mu-law 8kHz format (matching Twilio Media Streams' expected format).
+    Sends text to Deepgram Aura and returns synthesized audio bytes in
+    raw mu-law 8kHz format — intended to be directly playable by Twilio
+    Media Streams with no conversion step needed.
 
     Raises ValueError immediately for unsupported languages instead of
     silently calling Deepgram with a language it doesn't handle.
@@ -30,4 +52,12 @@ async def synthesize(text: str, language: str = "en") -> bytes:
             f"Supported: {SUPPORTED_LANGUAGES}. "
             f"Arabic TTS provider is unresolved — see app/core/language.py."
         )
-    raise NotImplementedError("Implemented Day 5")
+
+    response = await _client.speak.v1.audio.generate(
+        text=text,
+        model=VOICE_MODEL,
+        encoding=ENCODING,
+        sample_rate=SAMPLE_RATE,
+        container="none",  # raw audio, no WAV/OGG wrapper — Twilio needs raw frames
+    )
+    return response.stream.getvalue()

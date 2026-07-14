@@ -1,18 +1,17 @@
 """
 Twilio entrypoints.
 
-POST /voice      -> Twilio calls this on incoming call; we respond with TwiML
-                    that opens a <Connect><Stream> to /ws/media.
-WS   /ws/media   -> Twilio Media Streams connects here; raw audio (mu-law)
-                    flows in both directions over this socket.
-
-POST /voice is fully working (Day 2). WS /ws/media has the full Twilio
-event-handling shape wired up now, with STT/LLM/TTS logic stubbed in
-app/core/voice.py until Days 3-10.
+Day 6 update: the WebSocket message loop now isolates per-message
+handling in try/except so one malformed/unexpected event doesn't crash
+the whole call ungracefully, and cleanup (handle_call_end) is now
+guaranteed via try/finally rather than only firing on a clean
+WebSocketDisconnect.
 """
 
+import asyncio
 import base64
 import json
+import logging
 
 from fastapi import APIRouter, Form, WebSocket, WebSocketDisconnect
 from fastapi.responses import Response
@@ -20,6 +19,8 @@ from fastapi.responses import Response
 from app.core.voice import handle_audio_chunk, handle_call_end, handle_call_start
 from app.models.schemas import CallSession
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -30,11 +31,6 @@ async def incoming_call(
     From: str = Form(None),
     To: str = Form(None),
 ):
-    """
-    Twilio webhook hit on incoming call. Must return TwiML (XML).
-    Opens a bidirectional media stream to /ws/media for the actual
-    conversation once Days 3+ logic is filled in.
-    """
     ws_url = f"{settings.ws_base_url()}/ws/media"
 
     twiml = f"""<?xml version="1.0" encoding="UTF-8"?>
@@ -49,66 +45,83 @@ async def incoming_call(
 
 @router.websocket("/ws/media")
 async def media_stream(websocket: WebSocket):
-    """
-    Twilio Media Streams WebSocket handler.
-
-    Twilio sends a sequence of JSON events over this socket:
-        {"event": "connected", ...}
-        {"event": "start", "start": {"streamSid": ..., "callSid": ..., "mediaFormat": {...}}}
-        {"event": "media", "media": {"payload": "<base64 mu-law audio>", ...}}  # repeated
-        {"event": "stop", ...}
-
-    Full event dispatch is wired up here now. The actual STT -> LLM -> TTS
-    pipeline (app/core/voice.py) is stubbed until Days 3-7.
-    """
     await websocket.accept()
     session: CallSession | None = None
 
+    async def send_audio_back(audio_bytes: bytes) -> None:
+        if session and session.stream_sid:
+            await _send_media(websocket, session.stream_sid, audio_bytes)
+
     try:
         while True:
-            raw = await websocket.receive_text()
-            event = json.loads(raw)
-            event_type = event.get("event")
-
-            if event_type == "connected":
-                # Nothing to do yet — just confirms the socket is live.
+            event_type = None
+            try:
+                raw = await websocket.receive_text()
+                event = json.loads(raw)
+                event_type = event.get("event")
+            except WebSocketDisconnect:
+                raise  # handled by the outer except below
+            except Exception:
+                logger.exception("failed to parse incoming WebSocket message, skipping")
                 continue
 
-            elif event_type == "start":
-                start_data = event["start"]
-                session = CallSession(
-                    call_sid=start_data["callSid"],
-                    stream_sid=start_data["streamSid"],
-                )
-                await handle_call_start(session)
+            try:
+                if event_type == "connected":
+                    continue
 
-            elif event_type == "media":
-                if session is None:
-                    continue  # guard against out-of-order events
-                audio_bytes = base64.b64decode(event["media"]["payload"])
-                reply_audio = await handle_audio_chunk(session, audio_bytes)
-                if reply_audio:
-                    await _send_media(websocket, session.stream_sid, reply_audio)
+                elif event_type == "start":
+                    start_data = event["start"]
+                    session = CallSession(
+                        call_sid=start_data["callSid"],
+                        stream_sid=start_data["streamSid"],
+                    )
+                    await handle_call_start(session, send_audio_back)
 
-            elif event_type == "stop":
-                if session:
-                    await handle_call_end(session)
-                break
+                elif event_type == "media":
+                    if session is None:
+                        continue
+                    audio_bytes = base64.b64decode(event["media"]["payload"])
+                    await handle_audio_chunk(session, audio_bytes)
+
+                elif event_type == "stop":
+                    break
+
+                else:
+                    logger.debug(f"unrecognized Twilio event type: {event_type}")
+
+            except Exception:
+                logger.exception(f"error handling '{event_type}' event, continuing call")
 
     except WebSocketDisconnect:
+        call_sid = session.call_sid if session else "unknown"
+        logger.info(f"WebSocket disconnected (call_sid={call_sid})")
+
+    finally:
+        # Guaranteed cleanup regardless of exit path: normal "stop" event,
+        # disconnect, or any exception that somehow still escaped above.
         if session:
             await handle_call_end(session)
 
 
 async def _send_media(websocket: WebSocket, stream_sid: str, audio_bytes: bytes) -> None:
     """
-    Wraps outbound audio in the JSON envelope Twilio expects and sends
-    it back over the same media WebSocket.
+    Sends audio back to Twilio in 20ms mu-law frames (160 bytes at 8kHz),
+    paced in real time.
     """
-    payload = base64.b64encode(audio_bytes).decode("utf-8")
-    message = {
-        "event": "media",
-        "streamSid": stream_sid,
-        "media": {"payload": payload},
-    }
-    await websocket.send_text(json.dumps(message))
+    FRAME_SIZE = 160
+    FRAME_DURATION_S = 0.02
+
+    for i in range(0, len(audio_bytes), FRAME_SIZE):
+        frame = audio_bytes[i:i + FRAME_SIZE]
+        payload = base64.b64encode(frame).decode("utf-8")
+        message = {
+            "event": "media",
+            "streamSid": stream_sid,
+            "media": {"payload": payload},
+        }
+        try:
+            await websocket.send_text(json.dumps(message))
+        except Exception:
+            logger.exception("failed to send audio frame back to Twilio (caller likely hung up)")
+            return  # stop sending remaining frames — connection is gone
+        await asyncio.sleep(FRAME_DURATION_S)
