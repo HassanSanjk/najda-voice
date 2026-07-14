@@ -6,7 +6,7 @@ uvicorn[standard]>=0.32.0
 twilio>=9.3.0
 
 # Deepgram (STT + TTS)
-deepgram-sdk>=3.7.0
+deepgram-sdk>=7.4.0
 
 # Groq (LLM)
 groq>=1.2.0

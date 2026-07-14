@@ -42,11 +42,11 @@ KEYWORDS_FALLBACK = {
         "ar": ["حرق", "حروق", "احتراق"],
     },
     "choking": {
-        "en": ["choke", "choking", "can't breathe", "stuck in throat"],
-        "ar": ["اختناق", "شرقة", "لا يستطيع التنفس"],
+        "en": ["choke", "choking", "can't breathe", "can not breathe", "breathe", "breathing", "stuck in throat", "airway blocked"],
+        "ar": ["اختناق", "شرقة", "لا يستطيع التنفس", "يختنق"],
     },
     "cpr": {
-        "en": ["not breathing", "no pulse", "unconscious", "cpr", "heart stopped"],
+        "en": ["not breathing", "no pulse", "unconscious", "cpr", "heart stopped", "stopped breathing"],
         "ar": ["لا يتنفس", "فاقد الوعي", "قلبه توقف", "إنعاش"],
     },
     "electric_shock": {
@@ -54,15 +54,15 @@ KEYWORDS_FALLBACK = {
         "ar": ["صعقة كهربائية", "صعق", "كهرباء"],
     },
     "fractures": {
-        "en": ["broken bone", "fracture", "broken arm", "broken leg"],
-        "ar": ["كسر", "عظمة مكسورة"],
+        "en": ["broken bone", "fracture", "broken arm", "broken leg", "broken", "break", "snapped"],
+        "ar": ["كسر", "عظمة مكسورة", "عظم مكسور"],
     },
     "snake_bites": {
         "en": ["snake bite", "snake bit", "bitten by a snake"],
         "ar": ["لدغة ثعبان", "عضة ثعبان"],
     },
     "allergic_reactions": {
-        "en": ["allergic", "allergy", "anaphylaxis", "swelling face", "hives"],
+        "en": ["allergic", "allergy", "anaphylaxis", "swelling face", "hives", "epipen"],
         "ar": ["حساسية", "تحسس", "تورم الوجه"],
     },
 }
