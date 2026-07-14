@@ -9,7 +9,7 @@ twilio>=9.3.0
 deepgram-sdk>=3.7.0
 
 # Groq (LLM)
-groq>=0.11.0
+groq>=1.2.0
 
 # Async HTTP client (used instead of requests)
 httpx>=0.27.0

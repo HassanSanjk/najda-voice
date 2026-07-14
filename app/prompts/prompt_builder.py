@@ -26,12 +26,12 @@ def load_knowledge_context(scenario_hint: str | None = None) -> str:
 
     Stubbed scenario matching for now — Day 9 will implement real
     keyword/intent matching (e.g. detecting "bleeding" in the transcript
-    -> load only KB_Bleeding.txt). Currently concatenates all KB files,
+    -> load only bleeding.yaml). Currently concatenates all KB files,
     which works but is token-expensive; fine for early pipeline testing,
     must be replaced before Day 9 is done.
     """
     contents = []
-    for kb_file in sorted(KNOWLEDGE_DIR.glob("KB_*.txt")):
+    for kb_file in sorted(KNOWLEDGE_DIR.glob("*.yaml")):
         contents.append(kb_file.read_text(encoding="utf-8"))
     return "\n\n".join(contents)
 

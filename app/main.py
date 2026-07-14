@@ -1,9 +1,15 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.core.logging_config import setup_logging
 from app.routes.voice import router as voice_router
 from config import settings
+
+setup_logging()  # must run before anything else logs
+
+logger = logging.getLogger(__name__)
 
 REQUIRED_FOR_VOICE = [
     "twilio_account_sid",
@@ -16,19 +22,19 @@ REQUIRED_FOR_VOICE = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print(f"[najda-voice] starting up in '{settings.app_env}' mode")
+    logger.info(f"starting up in '{settings.app_env}' mode")
 
     missing = [k for k in REQUIRED_FOR_VOICE if not getattr(settings, k, "")]
     if missing:
-        print(
-            f"[najda-voice] WARNING: missing config for {', '.join(missing)}. "
+        logger.warning(
+            f"missing config for {', '.join(missing)}. "
             f"/health will work, but /voice will fail until these are set in .env"
         )
     else:
-        print("[najda-voice] all required service keys present")
+        logger.info("all required service keys present")
 
     yield
-    print("[najda-voice] shutting down")
+    logger.info("shutting down")
 
 
 def create_app() -> FastAPI:
