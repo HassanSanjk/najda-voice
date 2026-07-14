@@ -1,12 +1,17 @@
 """
 Turn orchestrator — the "brain" tying STT, LLM, and TTS together per call.
 
-Day 9 status: caller transcripts are now matched against the real KB
-YAML files (see app/prompts/kb_loader.py) to detect which emergency
-scenario applies, tracked per call so it persists across turns even if
-a later transcript doesn't re-mention the keyword (e.g. "yes it still
-hurts" won't re-match, but shouldn't need to -- we already know the
-scenario from an earlier turn).
+Day 10 status: Groq's reply is now streamed and synthesized sentence by
+sentence, instead of buffering the full reply before any TTS happens.
+Each complete sentence is spoken as soon as it's ready, so the caller
+starts hearing a response while Groq is still generating the rest of it.
+
+This is a sequential chunked approach (synthesize+send sentence N, THEN
+resume reading Groq's stream for sentence N+1), not a fully pipelined
+queue-based version that would let generation and synthesis overlap
+concurrently. The sequential version already delivers the actual goal
+("start speaking before the full response is generated") with far less
+complexity — flagged as a possible future optimization, not pursued now.
 """
 
 import asyncio
@@ -30,6 +35,18 @@ _send_audio_callbacks: dict[str, SendAudioFn] = {}
 _current_scenario: dict[str, str] = {}  # call_sid -> matched KB filename
 
 MIN_TRANSCRIPT_LENGTH = 2
+
+# Sentence-ending punctuation, English and Arabic. Plain substring
+# detection, not real sentence tokenization -- fine for short first-aid
+# replies, but abbreviations or decimals containing "." could split
+# early. Not a concern at this reply length/style, worth revisiting if
+# replies get more complex later.
+SENTENCE_ENDINGS = {".", "!", "?", "؟"}
+
+# Safety valve: if Groq goes this many characters without producing
+# sentence-ending punctuation, flush anyway rather than silently
+# reverting to "wait for the whole thing" behavior.
+MAX_BUFFER_BEFORE_FORCED_FLUSH = 200
 
 
 async def handle_call_start(session: CallSession, send_audio: SendAudioFn) -> None:
@@ -72,12 +89,6 @@ async def _consume_transcripts(session: CallSession, stream: DeepgramSTTStream) 
             logger.info(f"[{session.call_sid}] language set to '{detected_lang}'")
             session.language = detected_lang
 
-        # Re-run scenario matching on the latest transcript. If it matches,
-        # update (or set) the tracked scenario. If it doesn't match this
-        # turn but a scenario was already tracked from an earlier turn,
-        # keep using that one -- a caller confirming symptoms ("yes it
-        # still hurts") won't re-trigger a keyword match and shouldn't
-        # need to.
         matched = kb_loader.match_scenario(text, session.language or "en")
         if matched:
             if _current_scenario.get(session.call_sid) != matched:
@@ -93,21 +104,65 @@ async def _consume_transcripts(session: CallSession, stream: DeepgramSTTStream) 
             logger.exception(f"[{session.call_sid}] failed to generate/send reply")
 
 
+def _extract_complete_sentences(buffer: str) -> tuple[list[str], str]:
+    """
+    Splits buffer into complete sentences (ending in one of
+    SENTENCE_ENDINGS) and returns (complete_sentences, remainder_still_in_progress).
+    """
+    sentences = []
+    current = ""
+    for char in buffer:
+        current += char
+        if char in SENTENCE_ENDINGS:
+            sentences.append(current.strip())
+            current = ""
+
+    if not sentences and len(current) > MAX_BUFFER_BEFORE_FORCED_FLUSH:
+        sentences.append(current.strip())
+        current = ""
+
+    return sentences, current
+
+
 async def _generate_reply(session: CallSession) -> None:
+    """
+    Builds the prompt, then streams Groq's reply sentence by sentence:
+    each complete sentence is synthesized and sent to the caller
+    immediately, rather than waiting for the full reply before any
+    audio goes out.
+
+    If Groq fails partway through, whatever sentences were already
+    spoken are still saved to memory as a partial reply -- better than
+    discarding a partially-delivered turn the caller already heard.
+    """
     lang = session.language or "en"
     history = memory.get_history(session.call_sid)
     scenario_hint = _current_scenario.get(session.call_sid)
     messages = build_messages(lang, history, scenario_hint)
 
-    full_reply = ""
+    buffer = ""
+    full_reply_parts: list[str] = []
+
     try:
         async for token in stream_completion(messages):
-            full_reply += token
+            buffer += token
+            complete_sentences, buffer = _extract_complete_sentences(buffer)
+            for sentence in complete_sentences:
+                if not sentence:
+                    continue
+                full_reply_parts.append(sentence)
+                await _speak_chunk(session, sentence, lang)
     except Exception:
-        logger.exception(f"[{session.call_sid}] Groq completion failed")
-        return
+        logger.exception(f"[{session.call_sid}] Groq completion failed mid-stream")
+        # Fall through deliberately -- flush/save whatever was already
+        # generated and spoken rather than losing it.
 
-    full_reply = full_reply.strip()
+    trailing = buffer.strip()
+    if trailing:
+        full_reply_parts.append(trailing)
+        await _speak_chunk(session, trailing, lang)
+
+    full_reply = " ".join(full_reply_parts).strip()
     if not full_reply:
         logger.warning(f"[{session.call_sid}] Groq returned an empty reply")
         return
@@ -115,10 +170,18 @@ async def _generate_reply(session: CallSession) -> None:
     logger.info(f"[{session.call_sid}] assistant ({lang}, scenario={scenario_hint}): {full_reply!r}")
     memory.add_turn(session.call_sid, "assistant", full_reply)
 
+
+async def _speak_chunk(session: CallSession, text: str, lang: str) -> None:
+    """
+    Synthesizes one sentence-sized chunk and sends it to the caller
+    right away. Isolated in its own try/except so a transient TTS
+    failure on one sentence doesn't lose the rest of the reply --
+    subsequent sentences still get a chance to play.
+    """
     try:
-        audio_bytes = await _synthesize_speech(full_reply, lang)
+        audio_bytes = await _synthesize_speech(text, lang)
     except Exception:
-        logger.exception(f"[{session.call_sid}] TTS synthesis failed (provider for '{lang}')")
+        logger.exception(f"[{session.call_sid}] TTS synthesis failed for chunk: {text!r}")
         return
 
     send_audio = _send_audio_callbacks.get(session.call_sid)
@@ -129,7 +192,7 @@ async def _generate_reply(session: CallSession) -> None:
     try:
         await send_audio(audio_bytes)
     except Exception:
-        logger.exception(f"[{session.call_sid}] failed to send audio back to caller")
+        logger.exception(f"[{session.call_sid}] failed to send audio chunk back to caller")
 
 
 async def _synthesize_speech(text: str, lang: str) -> bytes:
