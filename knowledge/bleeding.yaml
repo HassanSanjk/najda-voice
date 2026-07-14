@@ -1,0 +1,77 @@
+emergency: bleeding
+version: "1.0"
+languages: [en, ar]
+
+# Tourniquet application intentionally excluded from the default severe-branch
+# steps -- too complex to instruct verbally under panic, and pressure +
+# elevation covers most cases. Answered as a fallback in general_knowledge
+# if the caller asks directly.
+
+triage:
+  en:
+    question: "Is the bleeding minor or severe?"
+    options:
+      minor: "minor"
+      severe: "severe"
+  ar:
+    question: "هل النزيف بسيط أم شديد؟"
+    options:
+      minor: "بسيط"
+      severe: "شديد"
+
+scenarios:
+  minor:
+    en:
+      steps:
+        - "Clean the wound with water if you can."
+        - "Press a clean cloth firmly on the wound."
+        - "Hold the pressure for ten minutes without stopping."
+        - "Cover the wound with a bandage once bleeding stops."
+      follow_up: "Is the bleeding slowing down or stopped?"
+    ar:
+      steps:
+        - "نظّف الجرح بالماء إذا استطعت."
+        - "اضغط بقماش نظيف بقوة على الجرح."
+        - "استمر بالضغط لمدة عشر دقائق بدون توقف."
+        - "غطِّ الجرح بضمادة بعد توقف النزيف."
+      follow_up: "هل النزيف يتباطأ أو توقف؟"
+
+  severe:
+    en:
+      steps:
+        - "Press hard on the wound with both hands now."
+        - "Do not lift your hands, even for a second."
+        - "If something is stuck in the wound, leave it in place."
+        - "Raise the injured limb above the heart if you can."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+    ar:
+      steps:
+        - "اضغط بقوة على الجرح بكلتا يديك الآن."
+        - "لا ترفع يديك ولو للحظة."
+        - "إذا كان هناك شيء عالق في الجرح، اتركه في مكانه."
+        - "ارفع الطرف المصاب فوق مستوى القلب إذا استطعت."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+
+general_knowledge:
+  en:
+    - q: "Should I use a tourniquet?"
+      a: "Only if direct pressure is not working and help is delayed. Tie a cloth tightly above the wound, not on a joint. Note the time you applied it and tell the paramedics."
+    - q: "What if it's a nosebleed?"
+      a: "Pinch the soft part of the nose and lean forward, not back. Hold for ten minutes without checking. If it does not stop after twenty minutes, seek medical help."
+    - q: "What is shock and how do I spot it?"
+      a: "Shock happens when the body loses too much blood flow. Look for pale or cold skin, a fast weak pulse, and confusion. Keep the person lying down and warm."
+    - q: "How do I stop the wound getting infected?"
+      a: "Once bleeding stops, clean the wound gently with clean water. Cover it with a clean bandage. Watch for redness, swelling, or warmth over the next day."
+  ar:
+    - q: "هل أستخدم عاصبة لوقف النزيف؟"
+      a: "فقط إذا لم يوقف الضغط المباشر النزيف وتأخرت المساعدة. اربط قماشاً بقوة فوق الجرح، وليس على مفصل. احفظ وقت الربط وأخبر فريق الإسعاف به."
+    - q: "ماذا لو كان نزيف من الأنف؟"
+      a: "اضغط على الجزء اللين من الأنف وامِل للأمام وليس للخلف. استمر لمدة عشر دقائق بدون فحص. إذا لم يتوقف بعد عشرين دقيقة، اطلب المساعدة الطبية."
+    - q: "ما هي الصدمة وكيف أعرفها؟"
+      a: "الصدمة تحدث عندما يفقد الجسم الكثير من الدم. لاحظ شحوب الجلد وبرودته، ونبضاً سريعاً وضعيفاً، وارتباكاً. أبقِ الشخص مستلقياً ودافئاً."
+    - q: "كيف أمنع الجرح من الالتهاب؟"
+      a: "بعد توقف النزيف، نظّف الجرح برفق بالماء النظيف. غطِّه بضمادة نظيفة. راقب الاحمرار أو التورم أو السخونة خلال اليوم التالي."

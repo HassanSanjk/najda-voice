@@ -1,0 +1,94 @@
+emergency: burns
+version: "1.0"
+languages: [en, ar]
+
+# Three clinical degrees collapsed into two triage branches:
+#   minor  = 1st + 2nd degree (both use water-cooling; duration differences
+#            aren't worth a third triage tier)
+#   severe = 3rd degree only (the one branch with a genuinely contradictory
+#            protocol -- no water, call emergency services now)
+#
+# The minor branch's follow_up line acts as a safety net for burns that
+# were misjudged or are worsening, without setting escalate:true on minor
+# (that would make every simple sunburn call end in an emergency-services
+# line, which is wrong).
+#
+# Electrical burns are NOT handled here beyond a one-line safety caveat --
+# see the separate electric_shock KB file. Check prompt_builder.py's
+# keyword routing: a caller describing an electrical burn as "burn" may
+# never reach that file.
+
+triage:
+  en:
+    question: "Is the burned skin white, charred, or numb, or is it red or blistered?"
+    options:
+      minor: "red or blistered"
+      severe: "white, charred, or numb"
+  ar:
+    question: "هل الجلد المحروق أبيض أو متفحم أو بدون إحساس، أم أحمر أو فيه فقاعات؟"
+    options:
+      minor: "أحمر أو فيه فقاعات"
+      severe: "أبيض أو متفحم أو بدون إحساس"
+
+scenarios:
+  minor:
+    en:
+      steps:
+        - "Run cool water over the burn for fifteen minutes."
+        - "Do not use ice, butter, or toothpaste on it."
+        - "Do not pop any blisters that form."
+        - "Cover loosely with a clean, non-stick bandage."
+        - "Take paracetamol or ibuprofen if the pain is bad."
+      follow_up: "If the skin turns white, black, or numb, call emergency services now."
+    ar:
+      steps:
+        - "ضع الحرق تحت ماء بارد جارٍ لمدة خمس عشرة دقيقة."
+        - "لا تستخدم الثلج أو الزبدة أو معجون الأسنان عليه."
+        - "لا تفقأ أي فقاعات تظهر."
+        - "غطِّ الحرق بضمادة نظيفة غير لاصقة بشكل خفيف."
+        - "تناول مسكناً مثل الباراسيتامول إذا كان الألم شديداً."
+      follow_up: "إذا أصبح الجلد أبيض أو أسود أو فقد الإحساس، اتصل بالإسعاف فوراً."
+
+  severe:
+    en:
+      steps:
+        - "Do not put water or anything else on the burn."
+        - "Do not remove any clothing stuck to the skin."
+        - "Cover it loosely with a clean, dry cloth."
+        - "Keep the person still, warm, and lying down."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+    ar:
+      steps:
+        - "لا تضع ماءً أو أي شيء آخر على الحرق."
+        - "لا تنزع أي ملابس ملتصقة بالجلد."
+        - "غطِّه بقماش نظيف وجاف بشكل خفيف."
+        - "أبقِ الشخص ساكناً ودافئاً ومستلقياً."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+
+general_knowledge:
+  en:
+    - q: "Should I see a doctor even if it's not that serious?"
+      a: "Yes, if the burn is bigger than your palm, or it's on the face, hands, feet, or groin. Get it checked by a doctor."
+    - q: "What if this is a chemical burn?"
+      a: "Remove any clothing with the chemical on it. Rinse the area with running water for at least twenty minutes. Go to a hospital and bring the chemical's label if you can."
+    - q: "What if the burn was caused by electricity?"
+      a: "Make sure the person is no longer touching the power source before you touch them. Electrical burns can damage the body beneath the skin, so they need hospital care even if the burn looks small."
+    - q: "What about a bad sunburn?"
+      a: "Take cool showers and apply aloe vera gel. Drink water and take a pain reliever if needed. Stay out of the sun until it heals."
+    - q: "I'm not sure what type of burn this is."
+      a: "Cool it with running water and do not pop any blisters. If the skin looks white, black, or you cannot feel it, treat it as severe and call emergency services."
+  ar:
+    - q: "هل يجب أن أراجع طبيباً حتى لو لم يكن خطيراً؟"
+      a: "نعم، إذا كان الحرق أكبر من راحة يدك، أو في الوجه أو اليدين أو القدمين أو المنطقة الحساسة. يجب أن يفحصه طبيب."
+    - q: "ماذا لو كان حرقاً كيميائياً؟"
+      a: "انزع أي ملابس عليها المادة الكيميائية. اغسل المنطقة بماء جارٍ لمدة عشرين دقيقة على الأقل. اذهب إلى المستشفى وخذ معك ملصق المادة إن أمكن."
+    - q: "ماذا لو كان الحرق بسبب الكهرباء؟"
+      a: "تأكد أن الشخص لم يعد ملامساً لمصدر الكهرباء قبل أن تلمسه. حروق الكهرباء قد تضر الجسم من الداخل، لذا يحتاج لرعاية في المستشفى حتى لو بدا الحرق بسيطاً."
+    - q: "ماذا عن حروق الشمس الشديدة؟"
+      a: "خذ حماماً بارداً وضع جل الصبار. اشرب الماء وتناول مسكناً إذا احتجت. ابتعد عن الشمس حتى يشفى الجلد."
+    - q: "لست متأكداً من نوع الحرق."
+      a: "بَرِّده بالماء الجاري ولا تفقأ أي فقاعات. إذا كان الجلد أبيض أو أسود أو بدون إحساس، تعامل معه كحالة خطيرة واتصل بالإسعاف."

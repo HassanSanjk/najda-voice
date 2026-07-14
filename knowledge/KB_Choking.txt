@@ -1,7 +1,0 @@
-# Choking - adult, child, infant branching
-#
-# PLACEHOLDER — paste extracted Botpress content here.
-# Original format used buttons/quick replies; convert each into
-# a spoken question per project brief section 7.3, e.g.:
-#   Botpress: "Adult / Child / Infant" (buttons)
-#   Voice:    "Who is choking? An adult, a child, or a baby?"

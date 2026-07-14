@@ -1,0 +1,104 @@
+emergency: electric_shock
+version: "1.0"
+languages: [en, ar]
+
+# Rescuer safety comes before triage: the "don't touch them if they're
+# still touching the source" sequence is duplicated as the opening of
+# BOTH branches rather than gated behind the severity question, since it
+# has to fire regardless of how the victim looks.
+#
+# DEVIATION from every other file: mild still escalates. Source content
+# is explicit that shocks can cause invisible cardiac/internal damage even
+# when the victim looks fine, so both branches end in the canonical
+# escalation phrase with escalate:true -- unlike bleeding/burns/allergic
+# where "minor" means no emergency call is needed.
+#
+# Third clinical state caught: unconscious but still breathing needs
+# recovery position, not CPR. Handled as a conditional line ahead of the
+# CPR trigger inside the severe branch rather than a missed case.
+#
+# CPR steps intentionally brief here (trigger line only) -- full technique
+# lives in cpr.yaml, same handoff pattern used in choking.yaml.
+
+triage:
+  en:
+    question: "Once it's safe, are they conscious and breathing normally, or not?"
+    options:
+      mild: "conscious and breathing"
+      severe: "not conscious or not breathing"
+  ar:
+    question: "بعد أن يصبح الوضع آمناً، هل هو واعٍ ويتنفس بشكل طبيعي، أم لا؟"
+    options:
+      mild: "واعٍ ويتنفس"
+      severe: "غير واعٍ أو لا يتنفس"
+
+scenarios:
+  mild:
+    en:
+      steps:
+        - "Do not touch them if they are still touching the power source."
+        - "Turn off the power, or push them away with something wooden."
+        - "Never use anything metal or wet to move them."
+        - "Cover any burns with a clean, non-stick cloth."
+        - "Do not put on creams or ice, and do not pop blisters."
+        - "Keep them warm and watch their breathing closely."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+    ar:
+      steps:
+        - "لا تلمسه إذا كان لا يزال ملامساً لمصدر الكهرباء."
+        - "أطفئ الكهرباء، أو ادفعه بعيداً باستخدام شيء خشبي."
+        - "لا تستخدم أبداً أي شيء معدني أو مبلل لتحريكه."
+        - "غطِّ أي حروق بقماش نظيف غير لاصق."
+        - "لا تضع كريمات أو ثلجاً، ولا تفقأ أي فقاعات."
+        - "أبقه دافئاً وراقب تنفسه عن قرب."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+
+  severe:
+    en:
+      steps:
+        - "Do not touch them if they are still touching the power source."
+        - "Turn off the power, or push them away with something wooden."
+        - "Never use anything metal or wet to move them."
+        - "If they are breathing but not responding, turn them onto their side."
+        - "If they are not breathing at all, start CPR right away."
+        - "If an AED is nearby, send someone to bring it now."
+        - "Cover any burns loosely with a clean cloth."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+    ar:
+      steps:
+        - "لا تلمسه إذا كان لا يزال ملامساً لمصدر الكهرباء."
+        - "أطفئ الكهرباء، أو ادفعه بعيداً باستخدام شيء خشبي."
+        - "لا تستخدم أبداً أي شيء معدني أو مبلل لتحريكه."
+        - "إذا كان يتنفس لكنه لا يستجيب، اقلبه على جانبه."
+        - "إذا لم يكن يتنفس إطلاقاً، ابدأ الإنعاش القلبي فوراً."
+        - "إذا كان جهاز الصدمات متوفراً، أرسل أحداً لإحضاره الآن."
+        - "غطِّ أي حروق بقماش نظيف بشكل خفيف."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+
+general_knowledge:
+  en:
+    - q: "Why call emergency services if they seem completely fine?"
+      a: "Electric shock can cause heart rhythm problems or internal injuries that aren't visible right away. Anyone who was shocked should still be checked by a doctor."
+    - q: "What if this happened in water?"
+      a: "Turn off the power or unplug the device first, from a distance. Pull them out using something non-conductive like wood or plastic, never your bare hands."
+    - q: "What if it was a lightning strike?"
+      a: "It's safe to touch them right away, lightning doesn't stay in the body. Move them to safety, check their breathing, and start CPR if needed."
+    - q: "The power won't turn off. What do I do?"
+      a: "Use a dry wooden stick, broom handle, or other non-conductive object to push them away from the source. Never use anything metal or wet."
+  ar:
+    - q: "لماذا أتصل بالإسعاف إذا كان يبدو بخير تماماً؟"
+      a: "الصدمة الكهربائية قد تسبب مشاكل في نظم القلب أو إصابات داخلية غير ظاهرة فوراً. أي شخص تعرض لصدمة كهربائية يجب أن يفحصه طبيب."
+    - q: "ماذا لو حدث هذا في الماء؟"
+      a: "أطفئ الكهرباء أو افصل الجهاز أولاً من مسافة آمنة. اسحبه للخارج باستخدام شيء غير موصل مثل الخشب أو البلاستيك، ولا تستخدم يديك المجردتين أبداً."
+    - q: "ماذا لو كانت صاعقة برق؟"
+      a: "من الآمن لمسه فوراً، فالبرق لا يبقى في الجسم. انقله إلى مكان آمن، تحقق من تنفسه، وابدأ الإنعاش القلبي إذا احتاج."
+    - q: "الكهرباء لا تنطفئ. ماذا أفعل؟"
+      a: "استخدم عصا خشبية جافة أو مقبض مكنسة أو أي شيء آخر غير موصل لدفعه بعيداً عن المصدر. لا تستخدم أبداً أي شيء معدني أو مبلل."

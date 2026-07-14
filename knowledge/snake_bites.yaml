@@ -1,0 +1,113 @@
+emergency: snake_bites
+version: "1.0"
+languages: [en, ar]
+
+# Dropped a contradictory clause from the source: it said not to give
+# food/drink/alcohol "unless unconscious and unable to swallow" -- that's
+# not a real exception, you'd never feed an unconscious person regardless.
+# Read as a copy-paste error and removed.
+#
+# Escalate on both branches, same category as electric_shock.yaml: the
+# source itself puts "call emergency services immediately" first,
+# unconditionally, because venomous vs non-venomous often can't be told
+# in the field and symptoms can appear later and progress fast. There is
+# no genuinely "safe to just monitor" case here.
+#
+# No real severity-based action split exists -- the core checklist is
+# identical regardless of how the bite looks, so triage instead checks
+# breathing/responsiveness, and the critical branch adds the same
+# recovery-position and CPR-trigger lines used in electric_shock.yaml,
+# reusing identical phrasing on purpose for consistency across files.
+
+triage:
+  en:
+    question: "Are they breathing normally and responding, or not?"
+    options:
+      stable: "breathing and responding"
+      critical: "not breathing normally or not responding"
+  ar:
+    question: "هل يتنفس ويستجيب بشكل طبيعي، أم لا؟"
+    options:
+      stable: "يتنفس ويستجيب"
+      critical: "لا يتنفس بشكل طبيعي أو لا يستجيب"
+
+scenarios:
+  stable:
+    en:
+      steps:
+        - "Keep them calm and completely still to slow the venom."
+        - "Do not cut the wound or try to suck out the venom."
+        - "Do not apply ice or a tight tourniquet."
+        - "Remove any tight rings, watches, or clothing near the bite."
+        - "Immobilize the limb with a splint, level with or below the heart."
+        - "Clean the bite gently with soap and water."
+        - "Cover it with a clean, loose bandage."
+        - "Do not give them food, drink, or alcohol."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+    ar:
+      steps:
+        - "أبقه هادئاً وساكناً تماماً لإبطاء انتشار السم."
+        - "لا تقطع الجرح أو تحاول مص السم منه."
+        - "لا تضع ثلجاً أو تربط عاصبة ضيقة."
+        - "انزع أي خواتم أو ساعات أو ملابس ضيقة قرب مكان اللدغة."
+        - "ثبّت الطرف بجبيرة، بمستوى القلب أو أخفض منه."
+        - "نظّف مكان اللدغة برفق بالماء والصابون."
+        - "غطِّه بضمادة نظيفة وغير ضيقة."
+        - "لا تعطه طعاماً أو شراباً أو كحولاً."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+
+  critical:
+    en:
+      steps:
+        - "Keep them calm and completely still to slow the venom."
+        - "Do not cut the wound or try to suck out the venom."
+        - "Do not apply ice or a tight tourniquet."
+        - "Remove any tight rings, watches, or clothing near the bite."
+        - "Immobilize the limb with a splint, level with or below the heart."
+        - "Clean the bite gently with soap and water."
+        - "Cover it with a clean, loose bandage."
+        - "Do not give them food, drink, or alcohol."
+        - "If they are breathing but not responding, turn them onto their side."
+        - "If they stop breathing, start CPR right away."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+    ar:
+      steps:
+        - "أبقه هادئاً وساكناً تماماً لإبطاء انتشار السم."
+        - "لا تقطع الجرح أو تحاول مص السم منه."
+        - "لا تضع ثلجاً أو تربط عاصبة ضيقة."
+        - "انزع أي خواتم أو ساعات أو ملابس ضيقة قرب مكان اللدغة."
+        - "ثبّت الطرف بجبيرة، بمستوى القلب أو أخفض منه."
+        - "نظّف مكان اللدغة برفق بالماء والصابون."
+        - "غطِّه بضمادة نظيفة وغير ضيقة."
+        - "لا تعطه طعاماً أو شراباً أو كحولاً."
+        - "إذا كان يتنفس لكنه لا يستجيب، اقلبه على جانبه."
+        - "إذا توقف عن التنفس، ابدأ الإنعاش القلبي فوراً."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+
+general_knowledge:
+  en:
+    - q: "Should I try to catch or photograph the snake?"
+      a: "Do not try to catch or kill it, that risks another bite. If it's safe to do from a distance, a photo helps doctors identify it, but do not delay care for this."
+    - q: "What if I'm not sure if it was venomous?"
+      a: "Treat every snake bite as an emergency. You often cannot tell right away, and symptoms from venom can appear later and get serious fast."
+    - q: "Should I use a tourniquet to stop the venom from spreading?"
+      a: "No, tourniquets cut off blood flow and cause more tissue damage. Keeping the limb still and below heart level is the safe way to slow it."
+    - q: "The bite is on a child. Does that change anything?"
+      a: "Children can get seriously ill faster from venom because of their smaller size. Follow the same steps, but treat it as more urgent."
+  ar:
+    - q: "هل أحاول الإمساك بالثعبان أو تصويره؟"
+      a: "لا تحاول الإمساك به أو قتله، فقد يلدغ مرة أخرى. إذا كان آمناً من مسافة، الصورة تساعد الأطباء على التعرف عليه، لكن لا تؤخر الرعاية من أجل هذا."
+    - q: "ماذا لو لم أكن متأكداً أنه كان ساماً؟"
+      a: "تعامل مع كل لدغة ثعبان كحالة طوارئ. غالباً لا يمكنك معرفة ذلك فوراً، وأعراض السم قد تظهر لاحقاً وتزداد خطورة بسرعة."
+    - q: "هل أستخدم عاصبة لمنع انتشار السم؟"
+      a: "لا، العاصبة تقطع تدفق الدم وتسبب ضرراً أكبر للأنسجة. إبقاء الطرف ساكناً وأخفض من القلب هو الطريقة الآمنة لإبطاء الانتشار."
+    - q: "اللدغة على طفل. هل يتغير شيء؟"
+      a: "الأطفال قد يتأثرون بالسم بشكل أسرع وأخطر بسبب صغر حجمهم. اتبع نفس الخطوات، لكن تعامل مع الأمر بإلحاح أكبر."

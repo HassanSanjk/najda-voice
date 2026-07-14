@@ -1,0 +1,82 @@
+emergency: allergic_reactions
+version: "1.0"
+languages: [en, ar]
+
+# Raw source used a 3-tier mild/moderate/severe split but described
+# "moderate" as including throat/face swelling and breathing difficulty --
+# those are anaphylaxis warning signs, not a mid-tier that only needs
+# antihistamines. Folded "moderate" into severe, not mild, so any airway
+# involvement routes straight to the emergency protocol.
+#
+# Epinephrine-injector step is phrased as a conditional imperative rather
+# than a second triage question, to keep the one-question cap while still
+# handling the have-injector / no-injector split.
+
+triage:
+  en:
+    question: "Is it just itching or a rash, or are they having trouble breathing or swallowing?"
+    options:
+      mild: "itching or rash only"
+      severe: "trouble breathing or swallowing"
+  ar:
+    question: "هل الأمر مجرد حكة أو طفح جلدي، أم أن هناك صعوبة في التنفس أو البلع؟"
+    options:
+      mild: "حكة أو طفح جلدي فقط"
+      severe: "صعوبة في التنفس أو البلع"
+
+scenarios:
+  mild:
+    en:
+      steps:
+        - "Take an antihistamine tablet if they have one."
+        - "Watch closely for swelling in the face or throat."
+        - "Watch for any trouble breathing or swallowing."
+      follow_up: "If breathing becomes hard or the throat swells, call emergency services now."
+    ar:
+      steps:
+        - "تناول حبة مضاد للحساسية إذا كانت متوفرة."
+        - "راقب أي تورم في الوجه أو الحلق."
+        - "راقب أي صعوبة في التنفس أو البلع."
+      follow_up: "إذا صار التنفس صعباً أو تورم الحلق، اتصل بالإسعاف فوراً."
+
+  severe:
+    en:
+      steps:
+        - "If they have an epinephrine injector, use it in the outer thigh now."
+        - "Lay them flat and raise their legs if they can breathe."
+        - "If breathing is hard, let them sit up instead."
+        - "Loosen any tight clothing around their neck and chest."
+        - "If they stop breathing and you know CPR, start it now."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+    ar:
+      steps:
+        - "إذا كان معهم إبرة إبينفرين، استخدمها في فخذهم الخارجي الآن."
+        - "أرقدهم على ظهرهم وارفع أرجلهم إذا كانوا يتنفسون بشكل طبيعي."
+        - "إذا كان التنفس صعباً، دعهم يجلسون بدلاً من ذلك."
+        - "فك أي ملابس ضيقة حول رقبتهم وصدرهم."
+        - "إذا توقفوا عن التنفس وتعرف الإنعاش القلبي، ابدأه الآن."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+
+general_knowledge:
+  en:
+    - q: "What if they don't have an epinephrine injector?"
+      a: "Still call emergency services immediately. Keep them calm, lying down if they can breathe, and monitor their breathing closely until help arrives."
+    - q: "Can I give a second dose of epinephrine?"
+      a: "Yes, if symptoms return or don't improve after five to fifteen minutes and a second injector is available. Keep calling emergency services regardless."
+    - q: "What if symptoms seem to improve after the injection?"
+      a: "Still go to the hospital. Anaphylaxis symptoms can return even after they seem to get better."
+    - q: "What common things cause this kind of reaction?"
+      a: "Common triggers are certain foods like peanuts or shellfish, insect stings, some medications, and latex."
+  ar:
+    - q: "ماذا لو لم يكن معهم إبرة إبينفرين؟"
+      a: "اتصل بالإسعاف فوراً على أي حال. أبقهم هادئين ومستلقين إذا كانوا يتنفسون بشكل طبيعي، وراقب تنفسهم عن قرب حتى وصول المساعدة."
+    - q: "هل يمكن إعطاء جرعة ثانية من الإبينفرين؟"
+      a: "نعم، إذا عادت الأعراض أو لم تتحسن بعد خمس إلى خمس عشرة دقيقة وكانت هناك إبرة أخرى متوفرة. استمر بالاتصال بالإسعاف في كل الأحوال."
+    - q: "ماذا لو تحسنت الأعراض بعد الحقنة؟"
+      a: "لا يزال يجب الذهاب إلى المستشفى. أعراض الحساسية الشديدة قد تعود حتى بعد أن تتحسن."
+    - q: "ما الأشياء الشائعة التي تسبب هذا النوع من التفاعل؟"
+      a: "الأسباب الشائعة تشمل بعض الأطعمة مثل الفول السوداني أو المحار، ولسعات الحشرات، وبعض الأدوية، والمطاط."

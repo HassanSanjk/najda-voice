@@ -1,0 +1,101 @@
+emergency: choking
+version: "1.0"
+languages: [en, ar]
+
+# DEVIATION FROM STANDARD SCHEMA: triage question is age (infant vs
+# adult/child), not severity. Choking is the one emergency here where the
+# correct physical TECHNIQUE depends on age, not on how severe the
+# blockage is -- abdominal thrusts on an infant risk internal injury.
+# Getting the technique right matters more than following the usual
+# severity-first pattern, so age is the top-level split instead.
+#
+# Mild-vs-severe (can they still cough/speak vs fully blocked) is still
+# handled, but as a conditional first line inside each age branch rather
+# than a second triage question, to keep the one-question cap.
+
+triage:
+  en:
+    question: "Is this an infant under one year old, or an older child or adult?"
+    options:
+      infant: "infant under one"
+      adult_child: "older child or adult"
+  ar:
+    question: "هل هذا رضيع أقل من سنة، أم طفل أكبر أو شخص بالغ؟"
+    options:
+      infant: "رضيع أقل من سنة"
+      adult_child: "طفل أكبر أو بالغ"
+
+scenarios:
+  adult_child:
+    en:
+      steps:
+        - "If they can cough, speak, or breathe, tell them to keep coughing."
+        - "If they cannot cough, speak, or breathe, stand behind them now."
+        - "Wrap your arms around their waist and make a fist above their navel."
+        - "Grab your fist with your other hand and thrust inward and upward."
+        - "Repeat these thrusts until the object comes out."
+        - "If they become unconscious, lower them to the ground gently."
+        - "Begin CPR and check their mouth each time you open the airway."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+    ar:
+      steps:
+        - "إذا كان يستطيع السعال أو الكلام أو التنفس، قل له أن يستمر بالسعال."
+        - "إذا لم يستطع السعال أو الكلام أو التنفس، قف خلفه الآن."
+        - "لف ذراعيك حول خصره واصنع قبضة فوق سرته."
+        - "أمسك قبضتك بيدك الأخرى وادفع للداخل وللأعلى."
+        - "كرر هذه الدفعات حتى يخرج الجسم الغريب."
+        - "إذا فقد الوعي، أنزله برفق إلى الأرض."
+        - "ابدأ الإنعاش القلبي وتحقق من فمه في كل مرة تفتح فيها مجرى الهواء."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+
+  infant:
+    en:
+      steps:
+        - "If the baby can cough or cry, let them keep coughing."
+        - "If they cannot cough, cry, or breathe, lay them face down."
+        - "Support their head on your forearm, lower than their body."
+        - "Give five firm back blows between their shoulder blades."
+        - "If the object does not come out, turn them face up."
+        - "Give five chest thrusts using two fingers on the center of the chest."
+        - "Keep repeating back blows and chest thrusts until the object comes out."
+        - "If they become unconscious, begin infant CPR right away."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+    ar:
+      steps:
+        - "إذا كان الرضيع يستطيع السعال أو البكاء، دعه يستمر."
+        - "إذا لم يستطع السعال أو البكاء أو التنفس، ضعه منبطحاً."
+        - "اسند رأسه على ساعدك، بحيث يكون أخفض من جسمه."
+        - "اضرب ظهره خمس ضربات قوية بين كتفيه."
+        - "إذا لم يخرج الجسم الغريب، اقلبه على ظهره."
+        - "اضغط على وسط صدره خمس مرات باستخدام إصبعين."
+        - "استمر بتكرار الضربات على الظهر والضغطات على الصدر حتى يخرج الجسم الغريب."
+        - "إذا فقد الوعي، ابدأ الإنعاش القلبي للرضع فوراً."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+
+general_knowledge:
+  en:
+    - q: "What if I'm the one choking and I'm alone?"
+      a: "If you can still cough, keep coughing hard. If you can't, lean over a hard surface like a chair back and thrust your fist inward and upward into your stomach."
+    - q: "Is it safe to hit them on the back?"
+      a: "Yes, firm back blows are safe and can help when done correctly. A gentle pat will not work, it needs to be a firm strike."
+    - q: "The object came out. Are they okay now?"
+      a: "Watch them for continued coughing, trouble breathing, or chest pain. Even if they seem fine, it is best to get them checked by a doctor."
+    - q: "Can only food cause choking?"
+      a: "No, small objects like toys, coins, and balloon pieces cause choking too, especially in children."
+  ar:
+    - q: "ماذا لو كنت أنا من يختنق وأنا وحدي؟"
+      a: "إذا كنت لا تزال قادراً على السعال، استمر بالسعال بقوة. إذا لم تستطع، انحنِ فوق سطح صلب مثل ظهر كرسي وادفع بقبضتك للداخل وللأعلى في بطنك."
+    - q: "هل الضرب على الظهر آمن؟"
+      a: "نعم، الضربات القوية على الظهر آمنة ويمكن أن تساعد إذا نُفذت بشكل صحيح. الضربة الخفيفة لن تنجح، يجب أن تكون ضربة قوية."
+    - q: "خرج الجسم الغريب. هل هو بخير الآن؟"
+      a: "راقبه لأي سعال مستمر أو صعوبة في التنفس أو ألم في الصدر. حتى لو بدا بخير، من الأفضل أن يفحصه طبيب."
+    - q: "هل الطعام فقط يسبب الاختناق؟"
+      a: "لا، الأشياء الصغيرة مثل الألعاب والعملات المعدنية وقطع البالونات تسبب الاختناق أيضاً، خصوصاً عند الأطفال."

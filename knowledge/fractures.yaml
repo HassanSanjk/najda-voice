@@ -1,0 +1,97 @@
+emergency: fractures
+version: "1.0"
+languages: [en, ar]
+
+# Spinal/neck injury caution is NOT present anywhere in the source
+# material -- added deliberately, since it's the single most safety
+# critical fracture caution (incorrect movement risks paralysis) and its
+# absence from the raw content was a real gap, not a stylistic choice.
+# Duplicated as the opening line of both branches, same pre-triage-safety
+# pattern used for "don't touch the live wire" in electric_shock.yaml.
+#
+# Triage uses closed/open (skin integrity) rather than minor/severe --
+# this maps directly onto different actions and is answerable by a
+# panicked caller in a couple of words. Third file using clinically-named
+# branches instead of generic minor/severe (after infant/adult_child in
+# choking.yaml and cpr.yaml).
+#
+# The open-fracture bleeding step is worded differently from
+# bleeding.yaml on purpose: press AROUND the wound, not directly on it,
+# since direct pressure on a protruding bone fragment is harmful.
+
+triage:
+  en:
+    question: "Is the bone visible through the skin, or is the skin unbroken?"
+    options:
+      closed: "skin unbroken"
+      open: "bone visible through the skin"
+  ar:
+    question: "هل العظم ظاهر من خلال الجلد، أم أن الجلد سليم؟"
+    options:
+      closed: "الجلد سليم"
+      open: "العظم ظاهر من خلال الجلد"
+
+scenarios:
+  closed:
+    en:
+      steps:
+        - "If the neck or back may be broken, do not move them."
+        - "Keep the injured area completely still."
+        - "Do not try to straighten or push the limb back into place."
+        - "Wrap ice in a cloth and place it on the area."
+        - "Raise the limb above the heart if it does not cause pain."
+        - "Get them to a doctor or hospital for an X-ray."
+      follow_up: "If the limb turns blue, numb, or feels very cold, call emergency services now."
+    ar:
+      steps:
+        - "إذا احتمل كسر الرقبة أو الظهر، لا تحرك الشخص."
+        - "أبقِ المنطقة المصابة ساكنة تماماً."
+        - "لا تحاول تقويم الطرف أو إعادته إلى مكانه."
+        - "لف الثلج بقماش وضعه على المنطقة."
+        - "ارفع الطرف فوق مستوى القلب إذا لم يسبب ذلك ألماً."
+        - "خذه إلى طبيب أو مستشفى لعمل أشعة."
+      follow_up: "إذا أصبح الطرف أزرق أو فقد الإحساس أو أصبح بارداً جداً، اتصل بالإسعاف فوراً."
+
+  open:
+    en:
+      steps:
+        - "If the neck or back may be broken, do not move them."
+        - "Keep the injured area completely still."
+        - "Do not try to push the bone back under the skin."
+        - "Press gently around the wound, not directly on the bone, to slow bleeding."
+        - "Cover the area loosely with a clean cloth."
+        - "Do not tie anything tightly around the limb."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+    ar:
+      steps:
+        - "إذا احتمل كسر الرقبة أو الظهر، لا تحرك الشخص."
+        - "أبقِ المنطقة المصابة ساكنة تماماً."
+        - "لا تحاول دفع العظم تحت الجلد."
+        - "اضغط برفق حول الجرح، وليس مباشرة على العظم، لإبطاء النزيف."
+        - "غطِّ المنطقة بقماش نظيف بشكل خفيف."
+        - "لا تربط أي شيء بإحكام حول الطرف."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+
+general_knowledge:
+  en:
+    - q: "Should I splint it myself?"
+      a: "Only if you're trained and help is far away. If you do, keep the joints above and below the break from moving, and don't tie it too tight."
+    - q: "Can I give them something for the pain?"
+      a: "A regular pain reliever like paracetamol is fine if they can swallow safely. Avoid anti-inflammatory drugs if there's a lot of bleeding."
+    - q: "Is it definitely broken, or could it be a sprain?"
+      a: "If there's obvious deformity, they can't move it, or you hear a grinding sound, treat it as a fracture either way. The first aid is the same."
+    - q: "What if the bone is sticking out and I can't stop the bleeding?"
+      a: "Keep pressing gently around the wound, not on the bone itself, and call emergency services now if you haven't already."
+  ar:
+    - q: "هل أقوم بتجبيره بنفسي؟"
+      a: "فقط إذا كنت مدرباً والمساعدة بعيدة. إذا فعلت ذلك، لا تحرك المفاصل فوق وتحت الكسر، ولا تربطه بإحكام شديد."
+    - q: "هل يمكنني إعطاءه شيئاً للألم؟"
+      a: "مسكن عادي مثل الباراسيتامول مناسب إذا كان يستطيع البلع بأمان. تجنب مضادات الالتهاب إذا كان هناك نزيف كثير."
+    - q: "هل هو مكسور فعلاً أم مجرد التواء؟"
+      a: "إذا كان هناك تشوه واضح، أو لا يستطيع تحريكه، أو سمعت صوت احتكاك، تعامل معه كأنه كسر في كل الأحوال. الإسعافات الأولية نفسها."
+    - q: "ماذا لو كان العظم بارزاً ولا أستطيع إيقاف النزيف؟"
+      a: "استمر بالضغط برفق حول الجرح، وليس على العظم نفسه، واتصل بالإسعاف الآن إذا لم تكن قد فعلت ذلك."

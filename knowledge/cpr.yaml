@@ -1,0 +1,125 @@
+emergency: cpr
+version: "1.0"
+languages: [en, ar]
+
+# No mild/severe split exists for CPR -- by definition, arriving in this
+# file means the person is unresponsive and not breathing normally.
+# Triage question is age (infant vs adult/child), same pattern as
+# choking.yaml, because technique depends on body size, not severity.
+# This is the second file using this pattern -- worth treating as a
+# recognized second schema variant (technique-triage) alongside the
+# standard severity-triage used in bleeding/burns/allergic_reactions.
+#
+# REFINEMENT to "escalation phrase is always the last step": for cardiac
+# arrest, minutes matter more than anywhere else. An early line prompts
+# calling for help right after the breathing check (different wording,
+# not the canonical escalation_phrase), and the literal escalation_phrase
+# still closes the branch as the last step to satisfy the structural rule.
+#
+# AED usage is a single conditional prompt to fetch and turn it on --
+# modern AEDs voice-guide the rest themselves, so pad placement and shock
+# steps aren't scripted here beyond a brief general_knowledge answer.
+
+triage:
+  en:
+    question: "Is this an infant under one year old, or an older child or adult?"
+    options:
+      infant: "infant under one"
+      adult_child: "older child or adult"
+  ar:
+    question: "هل هذا رضيع أقل من سنة، أم طفل أكبر أو شخص بالغ؟"
+    options:
+      infant: "رضيع أقل من سنة"
+      adult_child: "طفل أكبر أو بالغ"
+
+scenarios:
+  adult_child:
+    en:
+      steps:
+        - "Tap them firmly and shout, are you okay."
+        - "Look and listen for breathing for ten seconds only."
+        - "If they are not breathing normally, have someone call emergency services now."
+        - "If an AED is nearby, send someone to bring it now."
+        - "Place the heel of one hand on the center of their chest."
+        - "Put your other hand on top and lock your fingers together."
+        - "Push hard and fast, at least two inches deep."
+        - "Let the chest rise fully between each push."
+        - "Do thirty pushes, then two breaths if you are trained."
+        - "If you're not trained, just keep pushing without stopping."
+        - "Keep going at about the speed of two pushes per second."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+    ar:
+      steps:
+        - "اضربه بقوة على كتفه واصرخ، هل أنت بخير؟"
+        - "انظر واستمع للتنفس لمدة عشر ثوانٍ فقط."
+        - "إذا لم يكن يتنفس بشكل طبيعي، اطلب من أحد الاتصال بالإسعاف الآن."
+        - "إذا كان جهاز الصدمات متوفراً، أرسل أحداً لإحضاره الآن."
+        - "ضع كعب يدك في منتصف صدره."
+        - "ضع يدك الأخرى فوقها وشابك أصابعك."
+        - "اضغط بقوة وسرعة، بعمق خمسة سنتيمترات على الأقل."
+        - "دع الصدر يرتفع بالكامل بين كل ضغطة."
+        - "اعمل ثلاثين ضغطة، ثم نفسين إذا كنت مدرباً."
+        - "إذا لم تكن مدرباً، استمر بالضغط فقط بدون توقف."
+        - "استمر بسرعة ضغطتين في الثانية تقريباً."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+
+  infant:
+    en:
+      steps:
+        - "Tap their foot and shout their name loudly."
+        - "Look and listen for breathing for ten seconds only."
+        - "If they are not breathing normally, have someone call emergency services now."
+        - "If an AED is nearby, send someone to bring it now."
+        - "Place two fingers just below the nipple line on their chest."
+        - "Push down about one and a half inches, hard and fast."
+        - "Let the chest rise fully between each push."
+        - "Do thirty pushes, then two gentle breaths covering their mouth and nose."
+        - "Keep going at about the speed of two pushes per second."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+    ar:
+      steps:
+        - "اضرب قدمه برفق واصرخ باسمه بصوت عالٍ."
+        - "انظر واستمع للتنفس لمدة عشر ثوانٍ فقط."
+        - "إذا لم يكن يتنفس بشكل طبيعي، اطلب من أحد الاتصال بالإسعاف الآن."
+        - "ضع إصبعين تحت خط الحلمتين مباشرة على صدره."
+        - "اضغط بعمق أربعة سنتيمترات تقريباً، بقوة وسرعة."
+        - "دع الصدر يرتفع بالكامل بين كل ضغطة."
+        - "اعمل ثلاثين ضغطة، ثم نفسين لطيفين تغطي فمه وأنفه معاً."
+        - "استمر بسرعة ضغطتين في الثانية تقريباً."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+
+general_knowledge:
+  en:
+    - q: "How do I use the AED once it arrives?"
+      a: "Turn it on and follow its voice instructions exactly. Stick the pads on the bare chest as shown in the pictures. Make sure no one touches the person when it delivers a shock."
+    - q: "What if I'm not trained to give rescue breaths?"
+      a: "Just keep doing chest compressions without stopping. Compressions alone still help and are much better than doing nothing."
+    - q: "Am I pushing hard enough? I'm worried about hurting them."
+      a: "Push hard, it is normal for ribs to crack. A hurt rib heals. Stopping compressions can cost their life."
+    - q: "The AED is for adults. Can I use it on a child?"
+      a: "Yes, use child pads or the child setting if the AED has one. If not, adult pads still work for a child in an emergency."
+    - q: "What if this is a drowning?"
+      a: "Give two rescue breaths first before you start compressions. Then continue with the normal thirty compressions to two breaths pattern."
+    - q: "When can I stop doing CPR?"
+      a: "Stop if they start breathing or moving on their own, if paramedics arrive and take over, or if you are too exhausted to continue."
+  ar:
+    - q: "كيف أستخدم جهاز الصدمات عندما يصل؟"
+      a: "شغّله واتبع تعليماته الصوتية بالضبط. الصق اللواصق على الصدر العاري كما هو موضح بالصور. تأكد ألا يلمس أحد الشخص عند توصيل الصدمة."
+    - q: "ماذا لو لم أكن مدرباً على إعطاء التنفس الاصطناعي؟"
+      a: "استمر فقط بالضغط على الصدر بدون توقف. الضغط وحده يساعد ويكون أفضل بكثير من عدم فعل شيء."
+    - q: "هل أضغط بقوة كافية؟ أخشى أن أؤذيه."
+      a: "اضغط بقوة، من الطبيعي أن تُكسر ضلوع. الضلع المكسور يشفى. لكن توقف الضغط قد يكلفه حياته."
+    - q: "جهاز الصدمات مخصص للبالغين. هل يمكن استخدامه على طفل؟"
+      a: "نعم، استخدم لواصق الأطفال أو إعداد الأطفال إذا كان الجهاز يحتوي عليه. إذا لم يتوفر، لواصق البالغين تعمل أيضاً على الطفل في حالة الطوارئ."
+    - q: "ماذا لو كان هذا غرقاً؟"
+      a: "أعطِ نفسين اصطناعيين أولاً قبل أن تبدأ الضغط على الصدر. ثم استمر بالنمط المعتاد: ثلاثين ضغطة ونفسين."
+    - q: "متى يمكنني التوقف عن الإنعاش القلبي؟"
+      a: "توقف إذا بدأ يتنفس أو يتحرك بنفسه، أو إذا وصل المسعفون وتولوا الأمر، أو إذا أصبحت منهكاً جداً للاستمرار."

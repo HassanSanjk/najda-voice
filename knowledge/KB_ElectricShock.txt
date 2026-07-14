@@ -1,7 +1,0 @@
-# Electric shock - contact with source yes/no
-#
-# PLACEHOLDER — paste extracted Botpress content here.
-# Original format used buttons/quick replies; convert each into
-# a spoken question per project brief section 7.3, e.g.:
-#   Botpress: "Still in contact / Not in contact" (buttons)
-#   Voice:    "Is the person still touching the electrical source?"

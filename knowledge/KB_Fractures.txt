@@ -1,7 +1,0 @@
-# Fractures - type and location
-#
-# PLACEHOLDER — paste extracted Botpress content here.
-# Original format used buttons/quick replies; convert each into
-# a spoken question per project brief section 7.3, e.g.:
-#   Botpress: "Arm / Leg / Other" (buttons)
-#   Voice:    "Where is the injury? Is it an arm, a leg, or somewhere else?"
