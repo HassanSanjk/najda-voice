@@ -16,6 +16,7 @@ complexity — flagged as a possible future optimization, not pursued now.
 
 import asyncio
 import logging
+import time
 from collections.abc import Awaitable, Callable
 
 from app.core import language, memory
@@ -33,8 +34,12 @@ SendAudioFn = Callable[[bytes], Awaitable[None]]
 _active_streams: dict[str, DeepgramSTTStream] = {}
 _send_audio_callbacks: dict[str, SendAudioFn] = {}
 _current_scenario: dict[str, str] = {}  # call_sid -> matched KB filename
+_transcript_tasks: dict[str, asyncio.Task] = {}
+_utterance_buffers: dict[str, list[str]] = {}
+_last_fragment_time: dict[str, float] = {}
 
 MIN_TRANSCRIPT_LENGTH = 2
+FRAGMENT_TIMEOUT_S = 3.0
 
 # Sentence-ending punctuation, English and Arabic. Plain substring
 # detection, not real sentence tokenization -- fine for short first-aid
@@ -61,9 +66,12 @@ async def handle_call_start(session: CallSession, send_audio: SendAudioFn) -> No
 
     _active_streams[session.call_sid] = stream
     _send_audio_callbacks[session.call_sid] = send_audio
+    _utterance_buffers[session.call_sid] = []
+    _last_fragment_time[session.call_sid] = 0.0
 
     task = asyncio.create_task(_consume_transcripts(session, stream))
     task.add_done_callback(lambda t: _log_task_exception(session.call_sid, t))
+    _transcript_tasks[session.call_sid] = task
 
 
 def _log_task_exception(call_sid: str, task: asyncio.Task) -> None:
@@ -75,33 +83,58 @@ def _log_task_exception(call_sid: str, task: asyncio.Task) -> None:
 
 
 async def _consume_transcripts(session: CallSession, stream: DeepgramSTTStream) -> None:
+    call_sid = session.call_sid
+    last_language: str | None = None
+
     async for transcript in stream.receive_transcripts():
-        if not transcript["is_final"]:
+        if transcript.get("flush"):
+            await _flush_utterance(session, last_language)
             continue
 
-        text = transcript["text"].strip()
-        if len(text) < MIN_TRANSCRIPT_LENGTH:
-            logger.debug(f"[{session.call_sid}] ignoring short/noise transcript: {text!r}")
+        if not transcript.get("is_final"):
             continue
 
-        detected_lang = language.detect_language(transcript.get("language"))
-        if detected_lang != session.language:
-            logger.info(f"[{session.call_sid}] language set to '{detected_lang}'")
-            session.language = detected_lang
+        fragment = transcript["text"].strip()
+        if fragment:
+            _utterance_buffers.setdefault(call_sid, []).append(fragment)
+            _last_fragment_time[call_sid] = time.monotonic()
+            if transcript.get("language"):
+                last_language = transcript["language"]
 
-        matched = kb_loader.match_scenario(text, session.language or "en")
-        if matched:
-            if _current_scenario.get(session.call_sid) != matched:
-                logger.info(f"[{session.call_sid}] scenario matched: {matched}")
-            _current_scenario[session.call_sid] = matched
+        buffered = _utterance_buffers.get(call_sid, [])
+        if buffered and (time.monotonic() - _last_fragment_time.get(call_sid, 0)) > FRAGMENT_TIMEOUT_S:
+            logger.warning(f"[{call_sid}] no UtteranceEnd received, flushing on timeout")
+            await _flush_utterance(session, last_language)
 
-        logger.info(f"[{session.call_sid}] caller said: {text!r}")
-        memory.add_turn(session.call_sid, "user", text)
 
-        try:
-            await _generate_reply(session)
-        except Exception:
-            logger.exception(f"[{session.call_sid}] failed to generate/send reply")
+async def _flush_utterance(session: CallSession, detected_language_code: str | None) -> None:
+    call_sid = session.call_sid
+    full_text = " ".join(_utterance_buffers.get(call_sid, [])).strip()
+    _utterance_buffers[call_sid] = []
+
+    if len(full_text) < MIN_TRANSCRIPT_LENGTH:
+        if full_text:
+            logger.debug(f"[{call_sid}] ignoring short/noise utterance: {full_text!r}")
+        return
+
+    detected_lang = language.detect_language(detected_language_code)
+    if detected_lang != session.language:
+        logger.info(f"[{call_sid}] language set to '{detected_lang}'")
+        session.language = detected_lang
+
+    matched = kb_loader.match_scenario(full_text, session.language or "en")
+    if matched:
+        if _current_scenario.get(call_sid) != matched:
+            logger.info(f"[{call_sid}] scenario matched: {matched}")
+        _current_scenario[call_sid] = matched
+
+    logger.info(f"[{call_sid}] caller said: {full_text!r}")
+    memory.add_turn(call_sid, "user", full_text)
+
+    try:
+        await _generate_reply(session)
+    except Exception:
+        logger.exception(f"[{call_sid}] failed to generate/send reply")
 
 
 def _extract_complete_sentences(buffer: str) -> tuple[list[str], str]:
@@ -217,6 +250,15 @@ async def handle_audio_chunk(session: CallSession, audio_bytes: bytes) -> None:
 
 async def handle_call_end(session: CallSession) -> None:
     logger.info(f"[{session.call_sid}] call ended")
+
+    task = _transcript_tasks.pop(session.call_sid, None)
+    if task and not task.done():
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
     stream = _active_streams.pop(session.call_sid, None)
     if stream:
         try:
@@ -225,4 +267,6 @@ async def handle_call_end(session: CallSession) -> None:
             logger.exception(f"[{session.call_sid}] error closing Deepgram STT connection")
     _send_audio_callbacks.pop(session.call_sid, None)
     _current_scenario.pop(session.call_sid, None)
+    _utterance_buffers.pop(session.call_sid, None)
+    _last_fragment_time.pop(session.call_sid, None)
     memory.clear(session.call_sid)

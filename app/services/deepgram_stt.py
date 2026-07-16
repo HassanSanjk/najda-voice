@@ -22,6 +22,7 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 SAMPLE_RATE = 8000
+KEEPALIVE_INTERVAL_S = 5
 
 
 class DeepgramSTTStream:
@@ -32,6 +33,7 @@ class DeepgramSTTStream:
         self._connection_ctx = None
         self._connection = None
         self._listen_task: asyncio.Task | None = None
+        self._keepalive_task: asyncio.Task | None = None
         self._transcript_queue: asyncio.Queue = asyncio.Queue()
 
     async def connect(self) -> None:
@@ -42,6 +44,7 @@ class DeepgramSTTStream:
             language=self._language,
             interim_results=True,
             smart_format=True,
+            utterance_end_ms="1000",
         )
         self._connection = await self._connection_ctx.__aenter__()
 
@@ -50,11 +53,20 @@ class DeepgramSTTStream:
         self._connection.on(EventType.CLOSE, self._on_close)
 
         self._listen_task = asyncio.create_task(self._connection.start_listening())
+        self._keepalive_task = asyncio.create_task(self._keepalive_loop())
 
     def _on_message(self, message) -> None:
         try:
-            if getattr(message, "type", None) != "Results":
+            msg_type = getattr(message, "type", None)
+
+            if msg_type == "UtteranceEnd":
+                logger.debug("received UtteranceEnd from Deepgram")
+                self._transcript_queue.put_nowait({"flush": True})
                 return
+
+            if msg_type != "Results":
+                return
+
             alternatives = message.channel.alternatives
             if not alternatives or not alternatives[0].transcript:
                 return
@@ -66,6 +78,16 @@ class DeepgramSTTStream:
             })
         except Exception:
             logger.exception("error handling Deepgram message")
+
+    async def _keepalive_loop(self) -> None:
+        try:
+            while True:
+                await asyncio.sleep(KEEPALIVE_INTERVAL_S)
+                await self._connection.send_keep_alive()
+        except asyncio.CancelledError:
+            pass
+        except Exception:
+            logger.exception("keepalive loop failed")
 
     def _on_error(self, error) -> None:
         # No reconnect logic yet — out of scope for this demo. Logged
@@ -88,6 +110,12 @@ class DeepgramSTTStream:
             yield transcript
 
     async def close(self) -> None:
+        if self._keepalive_task:
+            self._keepalive_task.cancel()
+            try:
+                await self._keepalive_task
+            except asyncio.CancelledError:
+                pass
         if self._connection:
             try:
                 await self._connection.send_close_stream()
