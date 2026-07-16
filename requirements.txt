@@ -2,8 +2,8 @@
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 
-# Twilio
-twilio>=9.3.0
+# Telnyx (provider for phone numbers + WebRTC browser calling)
+telnyx>=2.0.0
 
 # Deepgram (STT + TTS)
 deepgram-sdk>=7.4.0

@@ -7,13 +7,12 @@ from app.core.logging_config import setup_logging
 from app.routes.voice import router as voice_router
 from config import settings
 
-setup_logging()  # must run before anything else logs
+setup_logging()
 
 logger = logging.getLogger(__name__)
 
 REQUIRED_FOR_VOICE = [
-    "twilio_account_sid",
-    "twilio_auth_token",
+    "telnyx_api_key",
     "deepgram_api_key",
     "groq_api_key",
     "public_base_url",

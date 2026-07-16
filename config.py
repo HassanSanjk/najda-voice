@@ -2,10 +2,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Twilio
-    twilio_account_sid: str = ""
-    twilio_auth_token: str = ""
-    twilio_phone_number: str = ""
+    # Telnyx
+    telnyx_api_key: str = ""
+    telnyx_phone_number: str = ""
 
     # Deepgram
     deepgram_api_key: str = ""

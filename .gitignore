@@ -40,3 +40,6 @@ logs/*
 !logs/.gitkeep
 
 test_audio.raw
+
+# ngrok
+ngrok.yml
