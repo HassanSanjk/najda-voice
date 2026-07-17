@@ -30,3 +30,5 @@ def setup_logging() -> None:
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+    logging.getLogger("websockets.client").setLevel(logging.WARNING)
+    logging.getLogger("websockets.server").setLevel(logging.WARNING)

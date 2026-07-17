@@ -139,6 +139,7 @@ async def _consume_transcripts(session: CallSession, stream: DeepgramSTTStream) 
 
 async def _flush_utterance(session: CallSession, detected_language_code: str | None) -> None:
     call_sid = session.call_sid
+    utterance_received_at = time.monotonic()
     full_text = " ".join(_utterance_buffers.get(call_sid, [])).strip()
     _utterance_buffers[call_sid] = []
 
@@ -171,7 +172,7 @@ async def _flush_utterance(session: CallSession, detected_language_code: str | N
     logger.info(f"[{call_sid}] caller said: {full_text!r}")
     memory.add_turn(call_sid, "user", full_text)
 
-    reply_task = asyncio.create_task(_generate_reply(session))
+    reply_task = asyncio.create_task(_generate_reply(session, utterance_received_at))
     reply_task.add_done_callback(lambda t: _log_reply_task_exception(call_sid, t))
     _reply_tasks[call_sid] = reply_task
 
@@ -201,7 +202,7 @@ def _extract_complete_sentences(buf: str) -> tuple[list[str], str]:
     return sentences, current
 
 
-async def _generate_reply(session: CallSession) -> None:
+async def _generate_reply(session: CallSession, utterance_received_at: float) -> None:
     call_sid = session.call_sid
     lang = session.language or "en"
     history = memory.get_history(call_sid)
@@ -210,21 +211,29 @@ async def _generate_reply(session: CallSession) -> None:
 
     buffer = ""
     full_reply_parts: list[str] = []
+    first_token_logged = False
 
     try:
         async for token in stream_completion(messages):
+            if not first_token_logged:
+                logger.info(f"[{call_sid}] time to first Groq token: {time.monotonic() - utterance_received_at:.2f}s")
+                first_token_logged = True
             buffer += token
             complete_sentences, buffer = _extract_complete_sentences(buffer)
             for sentence in complete_sentences:
                 if not sentence:
                     continue
                 full_reply_parts.append(sentence)
+                tts_start = time.monotonic()
                 await _queue_speech(session, sentence, lang)
+                logger.info(f"[{call_sid}] sentence TTS done in {time.monotonic() - tts_start:.2f}s: {sentence!r}")
 
         trailing = buffer.strip()
         if trailing:
             full_reply_parts.append(trailing)
+            tts_start = time.monotonic()
             await _queue_speech(session, trailing, lang)
+            logger.info(f"[{call_sid}] sentence TTS done in {time.monotonic() - tts_start:.2f}s: {trailing!r}")
 
     except asyncio.CancelledError:
         logger.info(f"[{call_sid}] reply generation cancelled (barge-in)")
