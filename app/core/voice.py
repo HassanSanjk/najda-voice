@@ -1,17 +1,22 @@
 """
 Turn orchestrator — the "brain" tying STT, LLM, and TTS together per call.
 
-Day 10 status: Groq's reply is now streamed and synthesized sentence by
-sentence, instead of buffering the full reply before any TTS happens.
-Each complete sentence is spoken as soon as it's ready, so the caller
-starts hearing a response while Groq is still generating the rest of it.
-
-This is a sequential chunked approach (synthesize+send sentence N, THEN
-resume reading Groq's stream for sentence N+1), not a fully pipelined
-queue-based version that would let generation and synthesis overlap
-concurrently. The sequential version already delivers the actual goal
-("start speaking before the full response is generated") with far less
-complexity — flagged as a possible future optimization, not pursued now.
+Changes:
+- Responsiveness fix: TTS synthesis for each sentence now runs decoupled
+  from actually sending/pacing that sentence's audio. A dedicated per-call
+  sender task pulls finished audio off a queue and paces it out to Telnyx;
+  the reply-generation coroutine no longer blocks on real-time playback
+  duration before starting the next sentence's synthesis. This was the
+  single largest self-imposed latency source in the pipeline -- previously,
+  synthesizing sentence N+1 didn't start until sentence N's audio had
+  *finished playing* (several real seconds per sentence), not just
+  finished synthesizing.
+- Barge-in: a new caller utterance arriving while Najda is still
+  generating/speaking a reply cancels the in-progress reply and drops
+  any audio already queued but not yet sent.
+- speech_final never fired reliably in testing; "UtteranceEnd" (a message
+  type, not a distinct EventType) is the real end-of-utterance signal,
+  with a timeout-based safety net in case it doesn't fire.
 """
 
 import asyncio
@@ -33,24 +38,18 @@ SendAudioFn = Callable[[bytes], Awaitable[None]]
 
 _active_streams: dict[str, DeepgramSTTStream] = {}
 _send_audio_callbacks: dict[str, SendAudioFn] = {}
-_current_scenario: dict[str, str] = {}  # call_sid -> matched KB filename
+_current_scenario: dict[str, str] = {}
 _transcript_tasks: dict[str, asyncio.Task] = {}
 _utterance_buffers: dict[str, list[str]] = {}
 _last_fragment_time: dict[str, float] = {}
+_audio_queues: dict[str, asyncio.Queue] = {}
+_sender_tasks: dict[str, asyncio.Task] = {}
+_reply_tasks: dict[str, asyncio.Task] = {}
 
 MIN_TRANSCRIPT_LENGTH = 2
 FRAGMENT_TIMEOUT_S = 3.0
 
-# Sentence-ending punctuation, English and Arabic. Plain substring
-# detection, not real sentence tokenization -- fine for short first-aid
-# replies, but abbreviations or decimals containing "." could split
-# early. Not a concern at this reply length/style, worth revisiting if
-# replies get more complex later.
 SENTENCE_ENDINGS = {".", "!", "?", "؟"}
-
-# Safety valve: if Groq goes this many characters without producing
-# sentence-ending punctuation, flush anyway rather than silently
-# reverting to "wait for the whole thing" behavior.
 MAX_BUFFER_BEFORE_FORCED_FLUSH = 200
 
 
@@ -64,14 +63,37 @@ async def handle_call_start(session: CallSession, send_audio: SendAudioFn) -> No
         logger.exception(f"[{session.call_sid}] failed to open Deepgram STT connection")
         return
 
-    _active_streams[session.call_sid] = stream
-    _send_audio_callbacks[session.call_sid] = send_audio
-    _utterance_buffers[session.call_sid] = []
-    _last_fragment_time[session.call_sid] = 0.0
+    call_sid = session.call_sid
+    _active_streams[call_sid] = stream
+    _send_audio_callbacks[call_sid] = send_audio
+    _utterance_buffers[call_sid] = []
+    _last_fragment_time[call_sid] = 0.0
+    _audio_queues[call_sid] = asyncio.Queue()
+
+    sender_task = asyncio.create_task(_audio_sender_loop(call_sid))
+    _sender_tasks[call_sid] = sender_task
 
     task = asyncio.create_task(_consume_transcripts(session, stream))
-    task.add_done_callback(lambda t: _log_task_exception(session.call_sid, t))
-    _transcript_tasks[session.call_sid] = task
+    task.add_done_callback(lambda t: _log_task_exception(call_sid, t))
+    _transcript_tasks[call_sid] = task
+
+
+async def _audio_sender_loop(call_sid: str) -> None:
+    queue = _audio_queues[call_sid]
+
+    while True:
+        chunk = await queue.get()
+        if chunk is None:
+            break
+
+        send_audio = _send_audio_callbacks.get(call_sid)
+        if send_audio is None:
+            continue
+
+        try:
+            await send_audio(chunk)
+        except Exception:
+            logger.exception(f"[{call_sid}] failed to send audio chunk from sender loop")
 
 
 def _log_task_exception(call_sid: str, task: asyncio.Task) -> None:
@@ -80,6 +102,14 @@ def _log_task_exception(call_sid: str, task: asyncio.Task) -> None:
     exc = task.exception()
     if exc:
         logger.error(f"[{call_sid}] transcript-consumer task crashed", exc_info=exc)
+
+
+def _log_reply_task_exception(call_sid: str, task: asyncio.Task) -> None:
+    if task.cancelled():
+        return
+    exc = task.exception()
+    if exc:
+        logger.error(f"[{call_sid}] reply-generation task crashed", exc_info=exc)
 
 
 async def _consume_transcripts(session: CallSession, stream: DeepgramSTTStream) -> None:
@@ -117,6 +147,16 @@ async def _flush_utterance(session: CallSession, detected_language_code: str | N
             logger.debug(f"[{call_sid}] ignoring short/noise utterance: {full_text!r}")
         return
 
+    existing_reply = _reply_tasks.get(call_sid)
+    if existing_reply and not existing_reply.done():
+        logger.info(f"[{call_sid}] barge-in detected, cancelling in-progress reply")
+        existing_reply.cancel()
+        try:
+            await existing_reply
+        except asyncio.CancelledError:
+            pass
+        await _drain_audio_queue(call_sid)
+
     detected_lang = language.detect_language(detected_language_code)
     if detected_lang != session.language:
         logger.info(f"[{call_sid}] language set to '{detected_lang}'")
@@ -131,46 +171,41 @@ async def _flush_utterance(session: CallSession, detected_language_code: str | N
     logger.info(f"[{call_sid}] caller said: {full_text!r}")
     memory.add_turn(call_sid, "user", full_text)
 
-    try:
-        await _generate_reply(session)
-    except Exception:
-        logger.exception(f"[{call_sid}] failed to generate/send reply")
+    reply_task = asyncio.create_task(_generate_reply(session))
+    reply_task.add_done_callback(lambda t: _log_reply_task_exception(call_sid, t))
+    _reply_tasks[call_sid] = reply_task
 
 
-def _extract_complete_sentences(buffer: str) -> tuple[list[str], str]:
-    """
-    Splits buffer into complete sentences (ending in one of
-    SENTENCE_ENDINGS) and returns (complete_sentences, remainder_still_in_progress).
-    """
+async def _drain_audio_queue(call_sid: str) -> None:
+    queue = _audio_queues.get(call_sid)
+    if not queue:
+        return
+    while not queue.empty():
+        try:
+            queue.get_nowait()
+        except asyncio.QueueEmpty:
+            break
+
+
+def _extract_complete_sentences(buf: str) -> tuple[list[str], str]:
     sentences = []
     current = ""
-    for char in buffer:
+    for char in buf:
         current += char
         if char in SENTENCE_ENDINGS:
             sentences.append(current.strip())
             current = ""
-
     if not sentences and len(current) > MAX_BUFFER_BEFORE_FORCED_FLUSH:
         sentences.append(current.strip())
         current = ""
-
     return sentences, current
 
 
 async def _generate_reply(session: CallSession) -> None:
-    """
-    Builds the prompt, then streams Groq's reply sentence by sentence:
-    each complete sentence is synthesized and sent to the caller
-    immediately, rather than waiting for the full reply before any
-    audio goes out.
-
-    If Groq fails partway through, whatever sentences were already
-    spoken are still saved to memory as a partial reply -- better than
-    discarding a partially-delivered turn the caller already heard.
-    """
+    call_sid = session.call_sid
     lang = session.language or "en"
-    history = memory.get_history(session.call_sid)
-    scenario_hint = _current_scenario.get(session.call_sid)
+    history = memory.get_history(call_sid)
+    scenario_hint = _current_scenario.get(call_sid)
     messages = build_messages(lang, history, scenario_hint)
 
     buffer = ""
@@ -184,48 +219,39 @@ async def _generate_reply(session: CallSession) -> None:
                 if not sentence:
                     continue
                 full_reply_parts.append(sentence)
-                await _speak_chunk(session, sentence, lang)
+                await _queue_speech(session, sentence, lang)
+
+        trailing = buffer.strip()
+        if trailing:
+            full_reply_parts.append(trailing)
+            await _queue_speech(session, trailing, lang)
+
+    except asyncio.CancelledError:
+        logger.info(f"[{call_sid}] reply generation cancelled (barge-in)")
+        raise
     except Exception:
-        logger.exception(f"[{session.call_sid}] Groq completion failed mid-stream")
-        # Fall through deliberately -- flush/save whatever was already
-        # generated and spoken rather than losing it.
-
-    trailing = buffer.strip()
-    if trailing:
-        full_reply_parts.append(trailing)
-        await _speak_chunk(session, trailing, lang)
-
-    full_reply = " ".join(full_reply_parts).strip()
-    if not full_reply:
-        logger.warning(f"[{session.call_sid}] Groq returned an empty reply")
-        return
-
-    logger.info(f"[{session.call_sid}] assistant ({lang}, scenario={scenario_hint}): {full_reply!r}")
-    memory.add_turn(session.call_sid, "assistant", full_reply)
+        logger.exception(f"[{call_sid}] Groq completion failed mid-stream")
+    finally:
+        full_reply = " ".join(full_reply_parts).strip()
+        if full_reply:
+            logger.info(f"[{call_sid}] assistant ({lang}, scenario={scenario_hint}): {full_reply!r}")
+            memory.add_turn(call_sid, "assistant", full_reply)
+        else:
+            logger.warning(f"[{call_sid}] Groq returned an empty reply")
 
 
-async def _speak_chunk(session: CallSession, text: str, lang: str) -> None:
-    """
-    Synthesizes one sentence-sized chunk and sends it to the caller
-    right away. Isolated in its own try/except so a transient TTS
-    failure on one sentence doesn't lose the rest of the reply --
-    subsequent sentences still get a chance to play.
-    """
+async def _queue_speech(session: CallSession, text: str, lang: str) -> None:
     try:
         audio_bytes = await _synthesize_speech(text, lang)
     except Exception:
         logger.exception(f"[{session.call_sid}] TTS synthesis failed for chunk: {text!r}")
         return
 
-    send_audio = _send_audio_callbacks.get(session.call_sid)
-    if send_audio is None:
-        logger.warning(f"[{session.call_sid}] no send_audio callback registered")
+    queue = _audio_queues.get(session.call_sid)
+    if queue is None:
+        logger.warning(f"[{session.call_sid}] no audio queue found, dropping synthesized chunk")
         return
-
-    try:
-        await send_audio(audio_bytes)
-    except Exception:
-        logger.exception(f"[{session.call_sid}] failed to send audio chunk back to caller")
+    queue.put_nowait(audio_bytes)
 
 
 async def _synthesize_speech(text: str, lang: str) -> bytes:
@@ -249,9 +275,28 @@ async def handle_audio_chunk(session: CallSession, audio_bytes: bytes) -> None:
 
 
 async def handle_call_end(session: CallSession) -> None:
-    logger.info(f"[{session.call_sid}] call ended")
+    call_sid = session.call_sid
+    logger.info(f"[{call_sid}] call ended")
 
-    task = _transcript_tasks.pop(session.call_sid, None)
+    reply_task = _reply_tasks.pop(call_sid, None)
+    if reply_task and not reply_task.done():
+        reply_task.cancel()
+        try:
+            await reply_task
+        except asyncio.CancelledError:
+            pass
+
+    queue = _audio_queues.pop(call_sid, None)
+    if queue:
+        queue.put_nowait(None)
+    sender_task = _sender_tasks.pop(call_sid, None)
+    if sender_task:
+        try:
+            await sender_task
+        except Exception:
+            logger.exception(f"[{call_sid}] error in audio sender task during shutdown")
+
+    task = _transcript_tasks.pop(call_sid, None)
     if task and not task.done():
         task.cancel()
         try:
@@ -259,14 +304,15 @@ async def handle_call_end(session: CallSession) -> None:
         except asyncio.CancelledError:
             pass
 
-    stream = _active_streams.pop(session.call_sid, None)
+    stream = _active_streams.pop(call_sid, None)
     if stream:
         try:
             await stream.close()
         except Exception:
-            logger.exception(f"[{session.call_sid}] error closing Deepgram STT connection")
-    _send_audio_callbacks.pop(session.call_sid, None)
-    _current_scenario.pop(session.call_sid, None)
-    _utterance_buffers.pop(session.call_sid, None)
-    _last_fragment_time.pop(session.call_sid, None)
-    memory.clear(session.call_sid)
+            logger.exception(f"[{call_sid}] error closing Deepgram STT connection")
+
+    _send_audio_callbacks.pop(call_sid, None)
+    _current_scenario.pop(call_sid, None)
+    _utterance_buffers.pop(call_sid, None)
+    _last_fragment_time.pop(call_sid, None)
+    memory.clear(call_sid)
