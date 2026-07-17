@@ -47,6 +47,11 @@ _sender_tasks: dict[str, asyncio.Task] = {}
 _reply_tasks: dict[str, asyncio.Task] = {}
 
 MIN_TRANSCRIPT_LENGTH = 2
+
+FALLBACK_TEXT_BY_LANGUAGE = {
+    "en": "Sorry, I didn't catch that. Can you say that again?",
+    "ar": "عذراً، لم أفهم ذلك. هل يمكنك إعادة ما قلته؟",
+}
 FRAGMENT_TIMEOUT_S = 3.0
 
 SENTENCE_ENDINGS = {".", "!", "?", "؟"}
@@ -211,6 +216,7 @@ async def _generate_reply(session: CallSession, utterance_received_at: float) ->
 
     buffer = ""
     full_reply_parts: list[str] = []
+    tts_tasks: list[asyncio.Task] = []
     first_token_logged = False
 
     try:
@@ -218,49 +224,69 @@ async def _generate_reply(session: CallSession, utterance_received_at: float) ->
             if not first_token_logged:
                 logger.info(f"[{call_sid}] time to first Groq token: {time.monotonic() - utterance_received_at:.2f}s")
                 first_token_logged = True
+
             buffer += token
             complete_sentences, buffer = _extract_complete_sentences(buffer)
             for sentence in complete_sentences:
                 if not sentence:
                     continue
                 full_reply_parts.append(sentence)
-                tts_start = time.monotonic()
-                await _queue_speech(session, sentence, lang)
-                logger.info(f"[{call_sid}] sentence TTS done in {time.monotonic() - tts_start:.2f}s: {sentence!r}")
+                task = asyncio.create_task(_synthesize_speech_timed(call_sid, sentence, lang))
+                tts_tasks.append(task)
 
         trailing = buffer.strip()
         if trailing:
             full_reply_parts.append(trailing)
-            tts_start = time.monotonic()
-            await _queue_speech(session, trailing, lang)
-            logger.info(f"[{call_sid}] sentence TTS done in {time.monotonic() - tts_start:.2f}s: {trailing!r}")
+            task = asyncio.create_task(_synthesize_speech_timed(call_sid, trailing, lang))
+            tts_tasks.append(task)
 
     except asyncio.CancelledError:
         logger.info(f"[{call_sid}] reply generation cancelled (barge-in)")
+        for t in tts_tasks:
+            t.cancel()
         raise
     except Exception:
         logger.exception(f"[{call_sid}] Groq completion failed mid-stream")
-    finally:
-        full_reply = " ".join(full_reply_parts).strip()
-        if full_reply:
-            logger.info(f"[{call_sid}] assistant ({lang}, scenario={scenario_hint}): {full_reply!r}")
-            memory.add_turn(call_sid, "assistant", full_reply)
-        else:
-            logger.warning(f"[{call_sid}] Groq returned an empty reply")
+
+    queue = _audio_queues.get(call_sid)
+    for task in tts_tasks:
+        try:
+            audio_bytes = await task
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception(f"[{call_sid}] TTS synthesis failed for a queued sentence")
+            continue
+        if queue is not None and audio_bytes:
+            queue.put_nowait(audio_bytes)
+
+    full_reply = " ".join(full_reply_parts).strip()
+
+    if not full_reply:
+        logger.warning(f"[{call_sid}] Groq returned an empty reply — speaking fallback instead of silence")
+        fallback_text = FALLBACK_TEXT_BY_LANGUAGE.get(lang, FALLBACK_TEXT_BY_LANGUAGE["en"])
+        try:
+            fallback_audio = await _synthesize_speech(fallback_text, lang)
+            if queue is not None:
+                queue.put_nowait(fallback_audio)
+        except Exception:
+            logger.exception(f"[{call_sid}] failed to synthesize fallback speech")
+        memory.add_turn(call_sid, "assistant", fallback_text)
+        return
+
+    logger.info(f"[{call_sid}] assistant ({lang}, scenario={scenario_hint}): {full_reply!r}")
+    memory.add_turn(call_sid, "assistant", full_reply)
 
 
-async def _queue_speech(session: CallSession, text: str, lang: str) -> None:
+async def _synthesize_speech_timed(call_sid: str, text: str, lang: str) -> bytes | None:
+    started_at = time.monotonic()
     try:
         audio_bytes = await _synthesize_speech(text, lang)
+        logger.info(f"[{call_sid}] sentence TTS done in {time.monotonic() - started_at:.2f}s: {text!r}")
+        return audio_bytes
     except Exception:
-        logger.exception(f"[{session.call_sid}] TTS synthesis failed for chunk: {text!r}")
-        return
-
-    queue = _audio_queues.get(session.call_sid)
-    if queue is None:
-        logger.warning(f"[{session.call_sid}] no audio queue found, dropping synthesized chunk")
-        return
-    queue.put_nowait(audio_bytes)
+        logger.exception(f"[{call_sid}] TTS synthesis failed for chunk: {text!r}")
+        return None
 
 
 async def _synthesize_speech(text: str, lang: str) -> bytes:
