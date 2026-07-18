@@ -214,6 +214,26 @@ async def _generate_reply(session: CallSession, utterance_received_at: float) ->
     scenario_hint = _current_scenario.get(call_sid)
     messages = build_messages(lang, history, scenario_hint)
 
+    full_reply, _ = await _stream_and_queue_reply(call_sid, messages, lang, utterance_received_at)
+
+    if not full_reply:
+        logger.warning(f"[{call_sid}] Groq returned an empty reply, retrying once")
+        full_reply, _ = await _stream_and_queue_reply(call_sid, messages, lang, time.monotonic())
+
+    if not full_reply:
+        logger.warning(f"[{call_sid}] Groq returned an empty reply twice — speaking fallback instead of silence")
+        fallback_text = FALLBACK_TEXT_BY_LANGUAGE.get(lang, FALLBACK_TEXT_BY_LANGUAGE["en"])
+        await _speak_with_retry(call_sid, fallback_text, lang)
+        memory.add_turn(call_sid, "assistant", fallback_text)
+        return
+
+    logger.info(f"[{call_sid}] assistant ({lang}, scenario={scenario_hint}): {full_reply!r}")
+    memory.add_turn(call_sid, "assistant", full_reply)
+
+
+async def _stream_and_queue_reply(
+    call_sid: str, messages: list[dict], lang: str, start_time: float,
+) -> tuple[str, list]:
     buffer = ""
     full_reply_parts: list[str] = []
     tts_tasks: list[asyncio.Task] = []
@@ -222,31 +242,30 @@ async def _generate_reply(session: CallSession, utterance_received_at: float) ->
     try:
         async for token in stream_completion(messages):
             if not first_token_logged:
-                logger.info(f"[{call_sid}] time to first Groq token: {time.monotonic() - utterance_received_at:.2f}s")
+                logger.info(f"[{call_sid}] time to first Groq token: {time.monotonic() - start_time:.2f}s")
                 first_token_logged = True
-
             buffer += token
             complete_sentences, buffer = _extract_complete_sentences(buffer)
             for sentence in complete_sentences:
                 if not sentence:
                     continue
                 full_reply_parts.append(sentence)
-                task = asyncio.create_task(_synthesize_speech_timed(call_sid, sentence, lang))
-                tts_tasks.append(task)
+                tts_tasks.append(asyncio.create_task(_synthesize_speech_timed(call_sid, sentence, lang)))
 
         trailing = buffer.strip()
         if trailing:
             full_reply_parts.append(trailing)
-            task = asyncio.create_task(_synthesize_speech_timed(call_sid, trailing, lang))
-            tts_tasks.append(task)
+            tts_tasks.append(asyncio.create_task(_synthesize_speech_timed(call_sid, trailing, lang)))
 
     except asyncio.CancelledError:
-        logger.info(f"[{call_sid}] reply generation cancelled (barge-in)")
         for t in tts_tasks:
             t.cancel()
         raise
     except Exception:
         logger.exception(f"[{call_sid}] Groq completion failed mid-stream")
+        for t in tts_tasks:
+            t.cancel()
+        return "", []
 
     queue = _audio_queues.get(call_sid)
     for task in tts_tasks:
@@ -260,22 +279,20 @@ async def _generate_reply(session: CallSession, utterance_received_at: float) ->
         if queue is not None and audio_bytes:
             queue.put_nowait(audio_bytes)
 
-    full_reply = " ".join(full_reply_parts).strip()
+    return " ".join(full_reply_parts).strip(), tts_tasks
 
-    if not full_reply:
-        logger.warning(f"[{call_sid}] Groq returned an empty reply — speaking fallback instead of silence")
-        fallback_text = FALLBACK_TEXT_BY_LANGUAGE.get(lang, FALLBACK_TEXT_BY_LANGUAGE["en"])
+
+async def _speak_with_retry(call_sid: str, text: str, lang: str) -> None:
+    queue = _audio_queues.get(call_sid)
+    for attempt in (1, 2):
         try:
-            fallback_audio = await _synthesize_speech(fallback_text, lang)
+            audio_bytes = await _synthesize_speech(text, lang)
             if queue is not None:
-                queue.put_nowait(fallback_audio)
+                queue.put_nowait(audio_bytes)
+            return
         except Exception:
-            logger.exception(f"[{call_sid}] failed to synthesize fallback speech")
-        memory.add_turn(call_sid, "assistant", fallback_text)
-        return
-
-    logger.info(f"[{call_sid}] assistant ({lang}, scenario={scenario_hint}): {full_reply!r}")
-    memory.add_turn(call_sid, "assistant", full_reply)
+            logger.exception(f"[{call_sid}] fallback speech synthesis failed (attempt {attempt}/2)")
+    logger.error(f"[{call_sid}] fallback speech synthesis failed twice — caller hears nothing this turn")
 
 
 async def _synthesize_speech_timed(call_sid: str, text: str, lang: str) -> bytes | None:
