@@ -21,6 +21,7 @@ side, before trusting this in a demo.
 """
 
 import logging
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -45,13 +46,22 @@ KEYWORDS_FALLBACK = {
         "en": ["burn", "burned", "burnt", "scald", "fire"],
         "ar": ["حرق", "حروق", "احتراق"],
     },
+    # NOTE: "breathing"/"تنفس" deliberately NOT keywords for choking or cpr —
+    # breathing is mentioned in nearly every emergency ("he's breathing",
+    # "not breathing normally"), so it routed unrelated emergencies (observed
+    # live: a car-crash victim got choking/Heimlich guidance) to whichever of
+    # the two files happened to sort first — which even differs by OS.
     "choking": {
-        "en": ["choke", "choking", "breathe", "breathing", "airway", "throat"],
-        "ar": ["اختناق", "شرقة", "تنفس", "يختنق"],
+        # "cannot breathe" is a phrase, but it's contraction-stable: the
+        # normalizer maps "can't breathe" to the same string before matching.
+        "en": ["choke", "choking", "airway", "throat", "heimlich", "cannot breathe"],
+        "ar": ["اختناق", "شرقة", "يختنق", "غصة"],
     },
     "cpr": {
-        "en": ["pulse", "unconscious", "cpr", "heart", "breathing"],
-        "ar": ["نبض", "فاقد الوعي", "قلب", "تنفس", "إنعاش"],
+        "en": ["pulse", "unconscious", "cpr", "heart", "collapsed"],
+        # "مغمى/أغمي عليه" = colloquial "passed out/unconscious" — what real
+        # callers actually say (observed live, repeatedly).
+        "ar": ["نبض", "فاقد الوعي", "قلب", "إنعاش", "مغمى", "أغمي"],
     },
     "electric_shock": {
         "en": ["electric", "shock", "electrocuted", "power"],
@@ -81,7 +91,11 @@ def _load_yaml(filename: str) -> dict:
 
 @lru_cache(maxsize=None)
 def _all_kb_files() -> list[Path]:
-    return sorted(KNOWLEDGE_DIR.glob("KB_*.yaml"))
+    # Explicit case-insensitive sort: first-match-wins ordering must be
+    # identical everywhere. Windows Path comparison is case-insensitive and
+    # Linux's is not, which made KB_Choking vs KB_CPR match in a different
+    # order per OS (confirmed live vs. test-box divergence).
+    return sorted(KNOWLEDGE_DIR.glob("KB_*.yaml"), key=lambda p: p.name.lower())
 
 
 # Normalize common English contractions/apostrophes before matching,
@@ -104,12 +118,32 @@ _APOSTROPHE_MAP = {
 }
 
 
+# Arabic orthographic normalization for keyword matching. Real Arabic
+# speech transcripts vary in diacritics, hamza/alef seats, and final-ya/
+# ta-marbuta spelling — plain substring matching misses without this
+# (the exact fragility called out in this module's LIMITATION note).
+# Applied identically to both transcript and keywords, so matching stays
+# internally consistent regardless of which form either side uses.
+# U+064B–U+0652 harakat (tanween/fatha/damma/kasra/shadda/sukun),
+# U+0670 dagger alef, U+0640 tatweel. Escapes used on purpose: literal
+# RTL combining chars inside a regex range are unreadable and fragile.
+_ARABIC_STRIP = re.compile("[\u064b-\u0652\u0670\u0640]")
+_ARABIC_CHAR_MAP = str.maketrans({
+    "أ": "ا", "إ": "ا", "آ": "ا",  # hamza-seated alefs -> bare alef
+    "ى": "ي",                       # alef maqsura -> ya
+    "ة": "ه",                       # ta marbuta -> ha
+})
+
+
 def _normalize(text: str) -> str:
-    """Lowercase, expand contractions, strip stray apostrophes."""
+    """Lowercase, expand contractions, strip stray apostrophes, and
+    normalize Arabic orthography (diacritics, alef/ya/ta-marbuta variants)."""
     text = text.lower()
     for contraction, expanded in _APOSTROPHE_MAP.items():
         text = text.replace(contraction, expanded)
     text = text.replace("'", "")
+    text = _ARABIC_STRIP.sub("", text)
+    text = text.translate(_ARABIC_CHAR_MAP)
     return text
 
 
@@ -130,7 +164,7 @@ def match_scenario(transcript: str, language: str) -> str | None:
         keywords = own_keywords or fallback_keywords
 
         for kw in keywords:
-            if kw.lower() in text:
+            if _normalize(kw) in text:
                 return path.name
 
     return None

@@ -44,10 +44,27 @@ async def stream_completion(messages: list[dict]) -> AsyncGenerator[str, None]:
         model=MODEL,
         messages=messages,
         stream=True,
-        max_completion_tokens=300,  # first aid replies should be short; keeps latency down
+        # gpt-oss-20b is a *reasoning* model: it defaults to
+        # reasoning_effort="medium" (confirmed via installed groq SDK), and
+        # its reasoning tokens count against max_completion_tokens. With the
+        # old cap of 300, short/low-content caller turns ("Wait.", "Oh my
+        # god.") could trigger enough reasoning to exhaust the entire budget
+        # before any *content* token was emitted — a clean stream with zero
+        # visible output. That is the leading hypothesis for the observed
+        # fully-empty completions. "low" cuts reasoning tokens (also improving
+        # TTFT), and the raised cap leaves headroom; the caller-side retry +
+        # canned-fallback safety net in voice.py stays regardless.
+        max_completion_tokens=640,
+        reasoning_effort="low",
     )
 
     async for chunk in stream:
+        # Some stream chunks (e.g. trailing usage/finish chunks) can carry an
+        # empty choices list — indexing blindly would abort the whole reply.
+        if not chunk.choices:
+            continue
+        # Reasoning tokens arrive in delta.reasoning, not delta.content —
+        # reading .content only is correct: we never speak chain-of-thought.
         delta = chunk.choices[0].delta.content
         if delta:
             yield delta

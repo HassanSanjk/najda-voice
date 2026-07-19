@@ -12,11 +12,20 @@ generator yielding raw bytes chunks, not an awaitable — must be consumed
 with `async for`, not `await`.
 """
 
+import asyncio
+
 from deepgram import AsyncDeepgramClient
 
 from config import settings
 
 SUPPORTED_LANGUAGES = {"en"}
+
+# Cap concurrent Aura requests. A single long/duplicated reply firing many
+# sentences at once tripped Deepgram's TTS rate limit in live testing
+# (429 "Please try again later" x3, sentences lost). Playback runs at 1x
+# (~3s/sentence) while synthesis takes ~1-2s, so modest serialization is
+# inaudible to the caller.
+_concurrency = asyncio.Semaphore(3)
 
 # Deepgram Aura-2 voice. Confirmed real model id.
 VOICE_MODEL = "aura-2-asteria-en"
@@ -47,12 +56,13 @@ async def synthesize(text: str, language: str = "en") -> bytes:
     # generate() is an async generator that yields bytes chunks —
     # must be iterated with `async for`, not `await`.
     chunks: list[bytes] = []
-    async for chunk in _client.speak.v1.audio.generate(
-        text=text,
-        model=VOICE_MODEL,
-        encoding=ENCODING,
-        sample_rate=SAMPLE_RATE,
-        container="none",  # raw audio, no WAV/OGG wrapper — Twilio needs raw frames
-    ):
-        chunks.append(chunk)
+    async with _concurrency:
+        async for chunk in _client.speak.v1.audio.generate(
+            text=text,
+            model=VOICE_MODEL,
+            encoding=ENCODING,
+            sample_rate=SAMPLE_RATE,
+            container="none",  # raw audio, no WAV/OGG wrapper — Twilio needs raw frames
+        ):
+            chunks.append(chunk)
     return b"".join(chunks)
