@@ -1,9 +1,13 @@
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.core.language import get_tts_provider
 from app.core.logging_config import setup_logging
+from app.core.voice import arabic_tts_configured, prewarm_greeting_cache
+from app.routes.telnyx_token import router as telnyx_token_router
 from app.routes.voice import router as voice_router
 from config import settings
 
@@ -32,7 +36,22 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("all required service keys present")
 
+    if arabic_tts_configured():
+        logger.info(f"Arabic TTS provider: {get_tts_provider('ar')}")
+    else:
+        logger.warning(
+            f"Arabic TTS provider '{get_tts_provider('ar')}' is not configured — "
+            f"Arabic TTS and Arabic language detection are DISABLED; calls will "
+            f"run English-only until it is configured in .env"
+        )
+
+    # Pre-synthesize the fixed opening line(s) so the first call doesn't
+    # pay a TTS round trip for a greeting that never changes. Non-fatal
+    # if it fails — the greeting also lazily caches on first call.
+    prewarm_task = asyncio.create_task(prewarm_greeting_cache())
+
     yield
+    prewarm_task.cancel()
     logger.info("shutting down")
 
 
@@ -45,6 +64,10 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(voice_router)
+    # WebRTC browser-calling token endpoint — was defined but never
+    # mounted, so /telnyx-token 404'd and the cheap browser-based test
+    # path couldn't authenticate.
+    app.include_router(telnyx_token_router)
 
     @app.get("/health")
     async def health_check():

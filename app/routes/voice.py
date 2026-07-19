@@ -118,7 +118,8 @@ async def _send_media(websocket: WebSocket, _stream_id: str, audio_bytes: bytes)
     FRAME_SIZE = 160
     FRAME_INTERVAL = 0.02
     total_frames = (len(audio_bytes) + FRAME_SIZE - 1) // FRAME_SIZE
-    start = asyncio.get_event_loop().time()
+    loop = asyncio.get_running_loop()
+    start = loop.time()
 
     for i in range(total_frames):
         frame = audio_bytes[i * FRAME_SIZE:(i + 1) * FRAME_SIZE]
@@ -132,11 +133,24 @@ async def _send_media(websocket: WebSocket, _stream_id: str, audio_bytes: bytes)
         }
         try:
             await websocket.send_text(json.dumps(message))
+        except WebSocketDisconnect:
+            # Normal when the caller hangs up while audio is still being
+            # paced out — not an error worth a stack trace.
+            logger.info(f"caller disconnected mid-send, dropping remaining {total_frames - i} frame(s)")
+            return
+        except RuntimeError as exc:
+            if "close message has been sent" in str(exc):
+                # Same hangup race, surfaced as RuntimeError by starlette
+                # when a second sender hits the already-closed socket.
+                logger.info(f"websocket already closed, dropping remaining {total_frames - i} frame(s)")
+                return
+            logger.exception(f"failed to send audio frame back to Telnyx")
+            return
         except Exception:
             logger.exception(f"failed to send audio frame back to Telnyx")
             return
         expected_next = start + (i + 2) * FRAME_INTERVAL
-        now = asyncio.get_event_loop().time()
+        now = loop.time()
         delay = expected_next - now
         if delay > 0:
             await asyncio.sleep(delay)

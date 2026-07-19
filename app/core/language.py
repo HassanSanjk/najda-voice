@@ -29,10 +29,18 @@ PROMPT_FILE_BY_LANGUAGE = {
     "ar": PROMPTS_DIR / "system_ar.txt",
 }
 
-# TTS provider per language — resolved as of Day 8.
+# TTS provider per language — resolved as of Day 8; Arabic reworked July
+# 2026: ElevenLabs' free tier rejects library voices via API (402), so the
+# default Arabic provider is now Groq-hosted Orpheus (same GROQ_API_KEY as
+# the LLM). ElevenLabs remains selectable via TTS_PROVIDER_AR=elevenlabs.
 TTS_PROVIDER_BY_LANGUAGE: dict[str, str | None] = {
     "en": "deepgram_aura",
-    "ar": "elevenlabs",
+    "ar": None,  # resolved dynamically from settings — see get_tts_provider()
+}
+
+_AR_PROVIDERS = {
+    "groq": "groq_orpheus",
+    "elevenlabs": "elevenlabs",
 }
 
 # Deepgram Aura voice for English. Confirmed real voice slug.
@@ -54,6 +62,9 @@ def detect_language(deepgram_language_field: str | None) -> str:
 
 
 def get_tts_provider(language: str) -> str | None:
+    if language == "ar":
+        from config import settings  # local import to avoid config<->language cycles
+        return _AR_PROVIDERS.get(settings.tts_provider_ar.strip().lower(), "groq_orpheus")
     return TTS_PROVIDER_BY_LANGUAGE.get(language)
 
 
