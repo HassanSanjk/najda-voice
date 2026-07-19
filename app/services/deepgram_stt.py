@@ -74,7 +74,12 @@ class DeepgramSTTStream:
             self._transcript_queue.put_nowait({
                 "text": alt.transcript,
                 "is_final": message.is_final,
+                # Only populated in `language=multi` mode; monolingual
+                # connections (en, ar, ...) never report this. Language
+                # detection therefore happens via dual-stream arbitration
+                # in app/core/voice.py, using `confidence` below.
                 "language": alt.languages[0] if alt.languages else None,
+                "confidence": getattr(alt, "confidence", 0.0),
             })
         except Exception:
             logger.exception("error handling Deepgram message")
