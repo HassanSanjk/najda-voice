@@ -28,7 +28,7 @@ SUPPORTED_LANGUAGES = {"en"}
 _concurrency = asyncio.Semaphore(3)
 
 # Deepgram Aura-2 voice. Confirmed real model id.
-VOICE_MODEL = "aura-2-asteria-en"
+VOICE_MODEL = "aura-2-apollo-en"
 
 # Twilio Media Streams expects 8kHz mu-law, no container/header.
 SAMPLE_RATE = 8000

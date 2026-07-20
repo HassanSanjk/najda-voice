@@ -45,7 +45,7 @@ _AR_PROVIDERS = {
 
 # Deepgram Aura voice for English. Confirmed real voice slug.
 VOICE_BY_LANGUAGE = {
-    "en": "aura-2-asteria-en",
+    "en": "aura-2-apollo-en",
 }
 
 
