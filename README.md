@@ -326,7 +326,7 @@ Wraps Deepgram's `listen.v1.connect()` in an async context manager:
 
 ### `app/services/deepgram_tts.py` — English TTS (Aura-2)
 
-- Model: `aura-2-asteria-en`
+- Model: `aura-2-apollo-en`
 - Output: raw mu-law 8kHz (`container="none"`), directly playable by Telnyx.
 - **Rate limiting:** `asyncio.Semaphore(3)` caps concurrent requests. Live
   testing showed burst of 6+ sentence requests triggering Deepgram's 429
