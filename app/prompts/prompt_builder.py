@@ -18,13 +18,20 @@ def load_system_prompt(language: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def load_knowledge_context(scenario_hint: str | None, language: str) -> str:
+def load_knowledge_context(
+    scenario_hint: str | None,
+    language: str,
+    given_steps: set[str] | None = None,
+    current_transcript: str | None = None,
+) -> str:
     """
     scenario_hint is a matched KB filename (e.g. "KB_Bleeding.yaml") if
     one's been detected this call, or None if not yet known.
     """
     if scenario_hint:
-        return kb_loader.format_kb_for_prompt(scenario_hint, language)
+        return kb_loader.format_kb_for_prompt(
+            scenario_hint, language, given_steps, current_transcript
+        )
     return kb_loader.format_generic_router(language)
 
 
@@ -32,11 +39,13 @@ def build_messages(
     language: str,
     history: list[Turn],
     scenario_hint: str | None = None,
+    given_steps: set[str] | None = None,
+    current_transcript: str | None = None,
 ) -> list[dict]:
     system_content = (
         load_system_prompt(language)
         + "\n\n"
-        + load_knowledge_context(scenario_hint, language)
+        + load_knowledge_context(scenario_hint, language, given_steps, current_transcript)
     )
 
     messages = [{"role": "system", "content": system_content}]

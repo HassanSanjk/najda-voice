@@ -35,6 +35,13 @@ _history: dict[str, list[Turn]] = {}
 # summarization task while one is already in flight for the same call.
 _summarizing: set[str] = set()
 
+# call_sid -> set of step strings already spoken this call. Populated
+# only after a turn's reply has actually made it into the audio send
+# queue (never speculatively) — marking a step "given" for a reply that
+# silently failed to produce audio would make the model wrongly skip
+# re-explaining something the caller never actually heard.
+_given_steps: dict[str, set[str]] = {}
+
 SUMMARIZE_AFTER_TURNS = 10
 KEEP_RECENT_TURNS = 4  # kept verbatim; everything older gets condensed
 
@@ -51,9 +58,19 @@ def get_history(call_sid: str) -> list[Turn]:
     return _history.get(call_sid, [])
 
 
+def mark_steps_given(call_sid: str, steps: set[str]) -> None:
+    if steps:
+        _given_steps.setdefault(call_sid, set()).update(steps)
+
+
+def get_given_steps(call_sid: str) -> set[str]:
+    return _given_steps.get(call_sid, set())
+
+
 def clear(call_sid: str) -> None:
     _history.pop(call_sid, None)
     _summarizing.discard(call_sid)
+    _given_steps.pop(call_sid, None)
 
 
 async def _summarize_and_replace(call_sid: str) -> None:

@@ -147,6 +147,18 @@ MAX_ARBITRATION_ROUNDS = 3
 SENTENCE_ENDINGS = {".", "!", "?", "؟"}
 MAX_BUFFER_BEFORE_FORCED_FLUSH = 200
 
+# Caps ungrounded (scenario_hint is None — no matched KB file) replies only.
+# A matched scenario's scripted steps are never truncated by this. Observed
+# live (Aug 2 headache call, scenario=None): an unbounded 9-sentence reply
+# ran into GROQ_TTS_CONCURRENCY=1's 1200-token/min budget on its own,
+# producing 16-23s single-sentence TTS latency from stacked 429 retry-after
+# waits — long enough a real caller would likely hang up mid-reply. Capping
+# sentence count is a more reliable fix than post-hoc near-duplicate
+# filtering, which the real paraphrased pair showed is defeated by inflection
+# ("هل تشرب ماء كافٍ؟" vs "هل شربت كميات كافية..." share ~0.1 trigram
+# overlap) — see §4.28.
+MAX_SENTENCES_NO_SCENARIO = 4
+
 _greeting_audio_cache: dict[str, bytes] = {}
 _greeting_lock = asyncio.Lock()
 
@@ -713,13 +725,17 @@ async def _generate_reply(session: CallSession, utterance_received_at: float) ->
     lang = session.language or "en"
     history = memory.get_history(call_sid)
     scenario_hint = _current_scenario.get(call_sid)
-    messages = build_messages(lang, history, scenario_hint)
+    given_steps = memory.get_given_steps(call_sid)
+    # The current turn's transcript is the most recent user turn — added to
+    # history in _flush_utterance right before this task was created.
+    current_transcript = history[-1].content if history and history[-1].role == "user" else None
+    messages = build_messages(lang, history, scenario_hint, given_steps, current_transcript)
 
-    full_reply, spoke_any = await _stream_and_queue_reply(call_sid, messages, lang, utterance_received_at)
+    full_reply, spoke_any = await _stream_and_queue_reply(call_sid, messages, lang, utterance_received_at, scenario_hint)
 
     if not full_reply and not spoke_any:
         logger.warning(f"[{call_sid}] Groq returned an empty reply, retrying once")
-        full_reply, spoke_any = await _stream_and_queue_reply(call_sid, messages, lang, time.monotonic())
+        full_reply, spoke_any = await _stream_and_queue_reply(call_sid, messages, lang, time.monotonic(), scenario_hint)
 
     if not full_reply and not spoke_any:
         logger.warning(f"[{call_sid}] Groq returned an empty reply twice — speaking fallback instead of silence")
@@ -753,10 +769,28 @@ async def _generate_reply(session: CallSession, utterance_received_at: float) ->
     if full_reply:
         logger.info(f"[{call_sid}] assistant ({lang}, scenario={scenario_hint}): {full_reply!r}")
         memory.add_turn(call_sid, "assistant", full_reply)
+        if scenario_hint:
+            # Reached only past the two early-return branches above, i.e.
+            # only when spoke_any was True on whichever attempt succeeded —
+            # steps are marked "given" only when the caller actually heard
+            # audio, never on the silent-failure paths those branches exist
+            # to catch. Branch-aware: only steps from branches whose content
+            # the reply actually verbalized get marked, so a triage-only
+            # turn (no steps spoken yet) marks nothing. The triage question
+            # is folded into the same set via detect_triage_delivered, so an
+            # unclassifiable STT-garbled answer can't trigger a verbatim
+            # repeat of the triage question (confirmed live: asked twice
+            # word-for-word at 00:52:03/09 on the Aug 2 test call).
+            delivered = kb_loader.detect_delivered_branches(scenario_hint, lang, full_reply)
+            triage_q = kb_loader.detect_triage_delivered(scenario_hint, lang, full_reply)
+            if triage_q:
+                delivered.add(triage_q)
+            memory.mark_steps_given(call_sid, delivered)
 
 
 async def _stream_and_queue_reply(
     call_sid: str, messages: list[dict], lang: str, start_time: float,
+    scenario_hint: str | None = None,
 ) -> tuple[str, bool]:
     """Streams a Groq reply, firing each complete sentence's TTS as an
     asyncio.Task immediately (pipelined — sentence N+1's synthesis overlaps
@@ -767,7 +801,12 @@ async def _stream_and_queue_reply(
     Returns (reply_text, any_audio_queued). If Groq fails mid-stream after
     some sentences were already synthesized/spoken, those sentences are
     kept (not retried) — repeating half a reply is worse than a truncated
-    one — and the returned text reflects what was actually produced."""
+    one — and the returned text reflects what was actually produced.
+
+    scenario_hint: the matched KB filename, or None for ungrounded (no-KB)
+    conversation. Ungrounded replies are capped at MAX_SENTENCES_NO_SCENARIO
+    to prevent a free-running reply from blowing the TTS rate budget (see
+    §4.28); a matched scenario's steps are never truncated."""
     buffer = ""
     full_reply_parts: list[str] = []
     tts_tasks: list[asyncio.Task] = []
@@ -776,8 +815,13 @@ async def _stream_and_queue_reply(
     first_token_logged = False
     groq_failed = False
     seen_sentences: set[str] = set()
+    sentence_count = 0
+    capped = False
 
     def _fire_sentence(sentence: str) -> None:
+        nonlocal sentence_count, capped
+        if capped:
+            return
         if sentence in seen_sentences:
             # The model occasionally loops, emitting an entire reply twice
             # (observed live: 9 sentences duplicated -> 18 simultaneous TTS
@@ -797,9 +841,17 @@ async def _stream_and_queue_reply(
             logger.warning(f"[{call_sid}] dropping unspeakable/wrong-script sentence: {sentence!r}")
             return
         full_reply_parts.append(sentence)
+        sentence_count += 1
         t = asyncio.create_task(_synthesize_speech_timed(call_sid, sentence, lang))
         tts_tasks.append(t)
         task_queue.put_nowait(t)
+
+        if scenario_hint is None and sentence_count >= MAX_SENTENCES_NO_SCENARIO:
+            capped = True
+            logger.warning(
+                f"[{call_sid}] ungrounded reply (scenario=None) hit "
+                f"{MAX_SENTENCES_NO_SCENARIO}-sentence cap — truncating rest of the stream"
+            )
 
     try:
         async for token in stream_completion(messages):
@@ -811,10 +863,12 @@ async def _stream_and_queue_reply(
             for sentence in complete_sentences:
                 if sentence:
                     _fire_sentence(sentence)
+            if capped:
+                break  # stop consuming Groq tokens once capped
 
         trailing = buffer.strip()
         if trailing:
-            _fire_sentence(trailing)
+            _fire_sentence(trailing)  # no-ops if capped — guarded at top
 
     except asyncio.CancelledError:
         for t in tts_tasks:

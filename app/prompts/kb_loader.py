@@ -13,11 +13,14 @@ works today without requiring every file to have a keywords field yet.
 If matching misses on real call transcripts during testing, adding an
 explicit `keywords` field per file is the cleaner long-term fix.
 
-LIMITATION: matching is plain substring search, not tokenized or
-normalized. This is more fragile for Arabic than English (diacritics,
-hamza variants, and spelling variation can all cause misses) -- worth
-specifically testing with real Arabic phrasing, not just the English
-side, before trusting this in a demo.
+LIMITATION: matching is word-boundary based, not tokenized, and
+deliberately misses inflected/cliticized forms (Arabic definite-article
+"الدم", possessives like "قلبي", English "burning" vs keyword "burn")
+-- those safely fall through to the generic router rather than
+misroute. Misses from diacritics, hamza variants, and spelling
+variation are also possible -- worth specifically testing with real
+Arabic phrasing, not just the English side, before trusting this in a
+demo.
 """
 
 import logging
@@ -147,6 +150,126 @@ def _normalize(text: str) -> str:
     return text
 
 
+# Thresholds for detect_delivered_branches below. Tuned deliberately
+# conservative: under-detection only lets the model restate a step the
+# caller may already have heard (harmless); over-detection could make it
+# skip a safety-critical step the caller never actually heard.
+STEP_OVERLAP_THRESHOLD = 0.35
+BRANCH_DELIVERY_THRESHOLD = 0.4
+
+
+def _tokenize(text: str) -> set[str]:
+    """Normalize then split into word tokens, dropping sentence punctuation."""
+    return set(re.sub(r"[.,;!?]", " ", _normalize(text)).split())
+
+
+def _escalation_phrases(filename: str, language: str) -> set[str]:
+    """Normalized escalation phrases across every branch of a KB file.
+
+    Every KB branch lists its escalation phrase AGAIN as its literal last
+    step, so raw step strings always include the escalation text. This set
+    lets the prompt formatter keep those steps out of the "already given"
+    block — escalation is the one thing that must stay repeatable."""
+    kb = _load_yaml(filename)
+    phrases: set[str] = set()
+    for branch_by_lang in kb.get("scenarios", {}).values():
+        branch = branch_by_lang.get(language)
+        if not branch:
+            continue
+        phrase = branch.get("escalation_phrase", "")
+        if phrase:
+            phrases.add(_normalize(phrase))
+    return phrases
+
+
+def detect_delivered_branches(filename: str, language: str, reply_text: str) -> set[str]:
+    """
+    Returns the step strings from `filename` that the assistant's reply
+    plausibly delivered, by word overlap between each step and the reply.
+
+    Granularity is per-branch, not per-scenario: a branch counts as
+    delivered only when BRANCH_DELIVERY_THRESHOLD of its steps each contain
+    STEP_OVERLAP_THRESHOLD of their words in the reply. This avoids marking
+    a scenario "given" off a triage-only turn (e.g. just the severity
+    question, which shares few words with any branch's steps) — steps are
+    only marked after the model actually spoke enough of one branch's
+    content for a human to have heard it.
+    """
+    kb = _load_yaml(filename)
+    reply_words = _tokenize(reply_text)
+    delivered: set[str] = set()
+
+    for branch_by_lang in kb.get("scenarios", {}).values():
+        branch = branch_by_lang.get(language)
+        if not branch:
+            continue
+        steps = branch.get("steps", [])
+        if not steps:
+            continue
+
+        qualifying = 0
+        for step in steps:
+            step_words = _tokenize(step)
+            if not step_words:
+                continue
+            overlap = sum(1 for w in step_words if w in reply_words) / len(step_words)
+            if overlap >= STEP_OVERLAP_THRESHOLD:
+                qualifying += 1
+
+        if qualifying / len(steps) >= BRANCH_DELIVERY_THRESHOLD:
+            delivered.update(steps)
+
+    return delivered
+
+
+def detect_triage_delivered(filename: str, language: str, reply_text: str) -> str | None:
+    """
+    Returns the scenario's triage question text if reply_text shows
+    meaningful overlap with it, else None. Triage was NOT covered by
+    detect_delivered_branches() -- confirmed live: a call whose triage
+    answer STT-garbled into something unclassifiable got the identical
+    triage question asked twice in a row (word-for-word, hit the TTS
+    cache). Tracked the same way as branch steps so it can also be
+    marked "already given."
+    """
+    kb = _load_yaml(filename)
+    triage = kb.get("triage", {}).get(language)
+    if not triage:
+        return None
+    question = triage["question"]
+    q_words = set(_normalize(question).split())
+    if not q_words:
+        return None
+    reply_words = set(_normalize(reply_text).split())
+    overlap = len(q_words & reply_words) / len(q_words)
+    return question if overlap >= STEP_OVERLAP_THRESHOLD else None
+
+
+_KEYWORD_PATTERN_CACHE: dict[str, re.Pattern] = {}
+
+
+def _keyword_matches(kw: str, normalized_text: str) -> bool:
+    """
+    Word-boundary match, not raw substring. Live incident (Aug 2 test
+    call): the caller said "لا صدمة" (no trauma), and substring search
+    matched the "دم" (blood) keyword -- دم is literally the middle two
+    letters of صدمة -- misrouting a plain headache call into
+    KB_Bleeding, which then asked an unanswerable triage question for
+    the rest of the call. \b works correctly here because Python's re
+    treats Arabic letters as \\w characters by default (Unicode-aware),
+    so it still matches "دم" correctly when it IS its own word (e.g.
+    "يوجد دم على الجرح"), just not when embedded inside a longer word.
+    """
+    normalized_kw = _normalize(kw)
+    if not normalized_kw:
+        return False
+    pattern = _KEYWORD_PATTERN_CACHE.get(normalized_kw)
+    if pattern is None:
+        pattern = re.compile(r"\b" + re.escape(normalized_kw) + r"\b")
+        _KEYWORD_PATTERN_CACHE[normalized_kw] = pattern
+    return bool(pattern.search(normalized_text))
+
+
 def match_scenario(transcript: str, language: str) -> str | None:
     """
     Returns the matched KB filename (e.g. "KB_Bleeding.yaml") if the
@@ -164,7 +287,7 @@ def match_scenario(transcript: str, language: str) -> str | None:
         keywords = own_keywords or fallback_keywords
 
         for kw in keywords:
-            if _normalize(kw) in text:
+            if _keyword_matches(kw, text):
                 return path.name
 
     return None
@@ -175,12 +298,29 @@ def get_kb_names() -> list[str]:
     return [_load_yaml(path.name).get("emergency", path.stem) for path in _all_kb_files()]
 
 
-def format_kb_for_prompt(filename: str, language: str) -> str:
+def format_kb_for_prompt(
+    filename: str,
+    language: str,
+    given_steps: set[str] | None = None,
+    current_transcript: str | None = None,
+) -> str:
     """
     Formats one matched KB file into natural-language instructions for
     the Groq system prompt: triage question, both scenario branches
-    with their steps, escalation phrasing, and general-knowledge Q&A
-    as a fallback reference.
+    with their steps, escalation phrasing, and a general-knowledge Q&A
+    fallback.
+
+    given_steps: exact step strings already spoken to the caller this
+    call (tracked in core/memory.py). Listed explicitly so the model is
+    TOLD it already said them, rather than left to infer that from raw
+    conversation history — the direct signal that fixes verbatim
+    repetition. Steps whose text equals a branch's escalation_phrase are
+    deliberately excluded from the list (escalation is the one thing
+    that SHOULD be repeatable).
+
+    current_transcript: the caller's current utterance. Used to trim
+    general_knowledge down to the single closest-matching entry instead
+    of injecting the full Q&A block unconditionally every turn.
     """
     kb = _load_yaml(filename)
     emergency_name = kb.get("emergency", filename)
@@ -189,7 +329,17 @@ def format_kb_for_prompt(filename: str, language: str) -> str:
 
     triage = kb.get("triage", {}).get(language)
     if triage:
-        lines.append("\nIf you haven't already asked, ask this triage question first:")
+        already_asked = given_steps and triage["question"] in given_steps
+        if already_asked:
+            lines.append(
+                "\nYou already asked the triage question below. If the caller's "
+                "last answer didn't clearly indicate which situation applies, do "
+                "NOT repeat this question word-for-word — ask a short, differently "
+                "worded clarifying follow-up instead (e.g. narrow it down, or ask "
+                "them to describe what they see/feel):"
+            )
+        else:
+            lines.append("\nIf you haven't already asked, ask this triage question first:")
         lines.append(f'"{triage["question"]}"')
 
     scenarios = kb.get("scenarios", {})
@@ -213,12 +363,45 @@ def format_kb_for_prompt(filename: str, language: str) -> str:
         if follow_up:
             lines.append(f'After giving these steps, ask: "{follow_up}"')
 
+    # Anti-repetition state signal: told directly rather than inferred
+    # from history. Escalation-identical steps excluded via
+    # _escalation_phrases — they're deliberately not suppressed.
+    if given_steps:
+        escalation = _escalation_phrases(filename, language)
+        repeatable = sorted(s for s in given_steps if _normalize(s) not in escalation)
+        if repeatable:
+            lines.append(
+                "\nSteps you have ALREADY told the caller this call — do NOT "
+                "repeat these verbatim. If relevant, refer to them briefly "
+                '("like I mentioned...") or paraphrase in fewer words instead:'
+            )
+            for step in repeatable:
+                lines.append(f"- {step}")
+
+    # General-knowledge fallback: inject only the closest-matching entry,
+    # and only once the caller actually asks something matching. Only
+    # substantive tokens (len >= 4 after normalization) count toward a
+    # match — short tokens like "is", "a", "do" are ubiquitous in both
+    # questions and replies, so a raw overlap test can fire on them alone
+    # (e.g. "Hello? Is anyone there?" sharing "is" with a CPR question).
     general_qa = kb.get("general_knowledge", {}).get(language, [])
-    if general_qa:
-        lines.append("\nIf the caller asks something related but not covered above, use this reference:")
+    if general_qa and current_transcript:
+        transcript_words = {w for w in _tokenize(current_transcript) if len(w) >= 4}
+        best_match = None
+        best_score = 0
         for item in general_qa:
-            lines.append(f'Q: {item["q"]}')
-            lines.append(f'A: {item["a"]}')
+            q_words = {w for w in _tokenize(item["q"]) if len(w) >= 4}
+            score = sum(1 for w in q_words if w in transcript_words)
+            if score > best_score:
+                best_score = score
+                best_match = item
+        if best_match and best_score > 0:
+            lines.append(
+                "\nThe caller's question may relate to this reference "
+                "(use it as background, in your own words):"
+            )
+            lines.append(f'Q: {best_match["q"]}')
+            lines.append(f'A: {best_match["a"]}')
 
     return "\n".join(lines)
 
