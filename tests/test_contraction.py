@@ -18,6 +18,11 @@ tests = [
     ("his heart stopped beating", "en", "KB_CPR.yaml"),
     ("I got an electric shock", "en", "KB_ElectricShock.yaml"),
     ("my allergy is acting up", "en", "KB_AllergicReactions.yaml"),
+    # Word-boundary regression (Aug 2 live incident): "دم" inside "صدمة"
+    # must NOT match bleeding — the caller said "no trauma", not "blood".
+    ("لا لا لن تحصل اي صدمة فقط كنت نائم وصحيت ولدي وجع راس جدا رهيب", "ar", None),
+    ("يوجد دم على الجرح", "ar", "KB_Bleeding.yaml"),
+    ("عنده قلب يرجف", "ar", "KB_CPR.yaml"),
 ]
 
 for text, lang, expected in tests:

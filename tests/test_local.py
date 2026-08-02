@@ -11,7 +11,7 @@ def test_kb_loader():
     print("=" * 60)
     print("TEST 1: KB Loader")
     print("=" * 60)
-    from app.prompts.kb_loader import match_scenario, format_kb_for_prompt, get_kb_names
+    from app.prompts.kb_loader import match_scenario, format_kb_for_prompt, get_kb_names, detect_triage_delivered
 
     names = get_kb_names()
     print(f"  Available scenarios: {names}")
@@ -23,6 +23,11 @@ def test_kb_loader():
         ("I think my arm is broken", "en", "KB_Fractures.yaml"),
         ("hello how are you", "en", None),
         ("help me my child cannot breathe", "en", "KB_Choking.yaml"),
+        # Word-boundary regression (Aug 2 live incident): "دم" inside
+        # "صدمة" must NOT route a headache call to KB_Bleeding.
+        ("لا لا لن تحصل اي صدمة فقط كنت نائم وصحيت ولدي وجع راس جدا رهيب", "ar", None),
+        ("يوجد دم على الجرح", "ar", "KB_Bleeding.yaml"),
+        ("عنده قلب يرجف", "ar", "KB_CPR.yaml"),
     ]
 
     all_pass = True
@@ -40,6 +45,28 @@ def test_kb_loader():
     print(f"  [{'PASS' if has_steps else 'FAIL'}] KB_Bleeding.yaml contains steps")
     if not (has_triage and has_steps):
         all_pass = False
+
+    # Triage-question tracking (Aug 2 live incident): an STT-garbled triage
+    # answer once made the model repeat the identical triage question. The
+    # question is now tracked like a delivered step.
+    triage_q = detect_triage_delivered("KB_Bleeding.yaml", "ar", "هل النزيف بسيط أم شديد؟")
+    if triage_q == "هل النزيف بسيط أم شديد؟":
+        print("  [PASS] detect_triage_delivered detects a verbatim triage re-ask")
+    else:
+        all_pass = False
+        print(f"  [FAIL] detect_triage_delivered verbatim re-ask = {triage_q!r}")
+    if detect_triage_delivered("KB_Bleeding.yaml", "ar", "فهمت، سأساعدك الآن") is None:
+        print("  [PASS] detect_triage_delivered ignores unrelated replies")
+    else:
+        all_pass = False
+        print("  [FAIL] detect_triage_delivered matched an unrelated reply")
+
+    reframed = format_kb_for_prompt("KB_Bleeding.yaml", "ar", {"هل النزيف بسيط أم شديد؟"})
+    if "already asked the triage question" in reframed and "If you haven't already asked" not in reframed:
+        print("  [PASS] format_kb_for_prompt reframes the instruction once triage is asked")
+    else:
+        all_pass = False
+        print("  [FAIL] format_kb_for_prompt triage reframe")
 
     print(f"\n  KB formatted output preview:\n{kb[:600]}")
     print(f"\n  TEST 1: {'ALL PASSED' if all_pass else 'SOME FAILED'}")
