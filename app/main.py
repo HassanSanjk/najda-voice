@@ -1,12 +1,16 @@
 import asyncio
 import logging
+import pathlib
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.core.language import get_tts_provider
 from app.core.logging_config import setup_logging
 from app.core.voice import arabic_tts_configured, prewarm_greeting_cache
+from app.routes.demo import router as demo_router
 from app.routes.telnyx_token import router as telnyx_token_router
 from app.routes.voice import router as voice_router
 from config import settings
@@ -68,6 +72,27 @@ def create_app() -> FastAPI:
     # mounted, so /telnyx-token 404'd and the cheap browser-based test
     # path couldn't authenticate.
     app.include_router(telnyx_token_router)
+
+    # Browser demo page support: read-only endpoints the page polls
+    # (transcript panel) plus CORS for the GitHub Pages origin. Local
+    # testing is same-origin via the /demo static mount below, so CORS
+    # only matters when the page is served from https://hassansanjk.github.io.
+    app.include_router(demo_router)
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[
+            "https://hassansanjk.github.io",
+            "http://localhost:8000",
+            "http://127.0.0.1:8000",
+        ],
+        allow_credentials=False,
+        allow_methods=["GET"],
+        allow_headers=["*"],
+    )
+
+    docs_dir = pathlib.Path(__file__).resolve().parent.parent / "docs"
+    app.mount("/demo", StaticFiles(directory=docs_dir, html=True), name="demo")
 
     @app.get("/health")
     async def health_check():

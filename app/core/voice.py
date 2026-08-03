@@ -63,7 +63,7 @@ from collections import OrderedDict
 from collections.abc import Awaitable, Callable
 
 from app.core import language, memory
-from app.models.schemas import CallSession
+from app.models.schemas import CallSession, Turn
 from app.prompts import kb_loader
 from app.prompts.prompt_builder import build_messages
 from app.services import deepgram_tts, elevenlabs_tts, groq_tts
@@ -89,6 +89,33 @@ _watchdog_tasks: dict[str, asyncio.Task] = {}
 _decision_timers: dict[str, asyncio.Task] = {}
 _pending_detection: dict[str, dict] = {}
 _stt_dead_notified: set[str] = set()
+
+# Bounded snapshots of finished calls for the browser demo page's transcript
+# panel. handle_call_end pops _current_scenario and clears memory, so capture
+# both here BEFORE the per-call teardown runs — a call you just hung up stays
+# reviewable instead of vanishing the instant it ends.
+_ended_transcripts: dict[str, list[Turn]] = {}
+_ended_scenarios: dict[str, str | None] = {}
+MAX_ENDED_CALLS = 20
+
+
+def active_call_sids() -> list[str]:
+    # _active_streams is keyed once per call at start, so insertion order is
+    # chronological call-start order (Telnyx call ids are opaque, not sortable).
+    return list(_active_streams)
+
+
+def get_scenario(call_sid: str) -> str | None:
+    return _current_scenario.get(call_sid)
+
+
+def get_ended_transcript(call_sid: str) -> list[Turn]:
+    return _ended_transcripts.get(call_sid, [])
+
+
+def get_ended_scenario(call_sid: str) -> str | None:
+    return _ended_scenarios.get(call_sid)
+
 
 MIN_TRANSCRIPT_LENGTH = 2
 
@@ -1032,6 +1059,19 @@ async def handle_audio_chunk(session: CallSession, audio_bytes: bytes) -> None:
 async def handle_call_end(session: CallSession) -> None:
     call_sid = session.call_sid
     logger.info(f"[{call_sid}] call ended")
+
+    # Snapshot transcript + scenario BEFORE the teardown below pops
+    # _current_scenario and clears memory, so finished calls stay
+    # reviewable via /transcript.
+    scenario_at_end = _current_scenario.get(call_sid)
+    ended_turns = memory.get_history(call_sid)
+    if ended_turns:
+        _ended_transcripts[call_sid] = ended_turns
+        _ended_scenarios[call_sid] = scenario_at_end
+        while len(_ended_transcripts) > MAX_ENDED_CALLS:
+            oldest = next(iter(_ended_transcripts))
+            _ended_transcripts.pop(oldest, None)
+            _ended_scenarios.pop(oldest, None)
 
     reply_task = _reply_tasks.pop(call_sid, None)
     if reply_task and not reply_task.done():
