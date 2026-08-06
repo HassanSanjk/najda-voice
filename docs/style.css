@@ -1,0 +1,157 @@
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  background: #f3f5f8;
+  color: #1c2733;
+  display: flex;
+  justify-content: center;
+  padding: 24px;
+}
+
+.phone {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
+}
+
+.header {
+  background: #0b6e4f;
+  color: #fff;
+  padding: 18px 20px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.header .sub {
+  font-size: 13px;
+  opacity: 0.85;
+  margin-top: 4px;
+}
+
+.statusbar {
+  padding: 12px 20px;
+  border-bottom: 1px solid #e8ebef;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #9aa4af;
+  display: inline-block;
+}
+
+.dot.active {
+  background: #0b6e4f;
+}
+
+.controls {
+  padding: 16px 20px;
+  display: flex;
+  gap: 12px;
+}
+
+button {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+#callBtn {
+  background: #0b6e4f;
+  color: #fff;
+}
+
+#callBtn:disabled {
+  background: #b9c3cc;
+  cursor: default;
+}
+
+#hangupBtn {
+  background: #d64545;
+  color: #fff;
+}
+
+.hidden {
+  display: none;
+}
+
+.panel {
+  padding: 0 20px 20px;
+}
+
+.chip {
+  display: inline-block;
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eef4ff;
+  color: #1d4ed8;
+  margin-bottom: 10px;
+}
+
+#transcript {
+  border: 1px solid #e8ebef;
+  border-radius: 10px;
+  min-height: 300px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 12px;
+  background: #fafbfc;
+}
+
+.turn {
+  margin-bottom: 10px;
+}
+
+.turn .label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9aa4af;
+  margin-bottom: 2px;
+}
+
+.turn .body {
+  display: inline-block;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.4;
+  max-width: 85%;
+}
+
+.turn.user .body {
+  background: #e8ebef;
+  color: #1c2733;
+}
+
+.turn.assistant .body {
+  background: #0b6e4f;
+  color: #fff;
+}
+
+audio {
+  display: none;
+}
+
+.footer {
+  font-size: 11px;
+  color: #9aa4af;
+  padding: 10px 20px 16px;
+  text-align: center;
+}
