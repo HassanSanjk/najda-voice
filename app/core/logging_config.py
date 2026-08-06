@@ -13,6 +13,11 @@ from config import settings
 
 
 def setup_logging() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8")
+
     level = logging.DEBUG if settings.app_env == "development" else logging.INFO
 
     handler = logging.StreamHandler(sys.stdout)

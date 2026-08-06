@@ -197,12 +197,24 @@
 
       const $ = (id) => document.getElementById(id);
 
+      function describeError(err) {
+        if (!err) return "unknown error";
+        if (err.message) return err.message;
+        try {
+          const json = JSON.stringify(err);
+          return json !== undefined && json !== "{}" ? json : String(err);
+        } catch (e) {
+          return String(err);
+        }
+      }
+
       function setStatus(text) {
         $("status").textContent = text;
         $("dot").classList.toggle("active", text !== "Idle");
       }
 
       async function placeCall() {
+        if (client) teardown();
         $("callBtn").disabled = true;
         setStatus("Fetching token…");
         try {
@@ -216,7 +228,22 @@
             env: "production",
           });
           client.remoteElement = "remoteAudio";
-          client.enableMicrophone();
+
+          try {
+            const mic = client.enableMicrophone();
+            if (mic && typeof mic.catch === "function") {
+              mic.catch((micErr) => {
+                console.error("enableMicrophone", micErr);
+                setStatus("Microphone unavailable: " + describeError(micErr));
+                teardown();
+              });
+            }
+          } catch (micErr) {
+            console.error("enableMicrophone", micErr);
+            setStatus("Microphone unavailable: " + describeError(micErr));
+            teardown();
+            return;
+          }
 
           client.on("telnyx.ready", () => {
             setStatus("Dialing…");
@@ -234,18 +261,21 @@
           });
 
           client.on("telnyx.error", (error) => {
-            setStatus("Error: " + (error && error.message ? error.message : error));
+            console.error("telnyx.error", error);
+            setStatus("Error: " + describeError(error));
             teardown();
           });
 
           client.on("telnyx.socket.close", () => {
+            console.warn("telnyx.socket.close");
             setStatus("Disconnected");
             teardown();
           });
 
           client.connect();
         } catch (err) {
-          setStatus("Call failed: " + err.message);
+          console.error("placeCall", err);
+          setStatus("Call failed: " + describeError(err));
           $("callBtn").disabled = false;
         }
       }
@@ -267,14 +297,22 @@
             setStatus("Call ended");
             $("hangupBtn").classList.add("hidden");
             $("callBtn").disabled = false;
-            // Let a final snapshot land so trailing turns still render.
+            if (client) {
+              client.disconnect();
+              client = null;
+            }
+            currentCall = null;
             setTimeout(stopPolling, 3000);
             break;
         }
       }
 
       function hangup() {
-        if (currentCall) currentCall.hangup();
+        try {
+          if (currentCall) currentCall.hangup();
+        } catch (e) {
+          console.error("hangup", e);
+        }
         if (client) client.disconnect();
       }
 
@@ -352,6 +390,8 @@
           pollTimer = null;
         }
       }
+
+      window.addEventListener("beforeunload", teardown);
     </script>
   </body>
 </html>
