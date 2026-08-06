@@ -1,6 +1,105 @@
 // Destination = the app's DID (config.telnyx_phone_number).
 const DESTINATION = "+13464720939";
 
+const q = new URLSearchParams(location.search);
+const num = (v) => {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) ? n : null;
+};
+const KNOBS = {
+  debug: q.has("debug"),
+  noReports: q.has("noReports"),
+  noReconnect: q.has("noReconnect"),
+  maxReconnect: num(q.get("maxReconnect")),
+  delayBeforeHangup: num(q.get("delayBeforeHangup")),
+  callDebug: q.has("callDebug"),
+  debugOutput: q.get("debugOutput") || null,
+};
+
+function logTrial(event, extra) {
+  console.log(
+    "[trial]",
+    event,
+    JSON.stringify({ ts: new Date().toISOString(), cfg: KNOBS, ...extra })
+  );
+}
+
+function renderTrialCfg() {
+  const el = $("trialCfg");
+  if (!el) return;
+  const parts = [];
+  for (const [k, v] of Object.entries(KNOBS)) {
+    if (v) parts.push(k + "=" + v);
+  }
+  el.textContent = parts.length
+    ? "trial config: " + parts.join(" ")
+    : "trial config: baseline";
+  el.classList.remove("hidden");
+}
+
+function timeIt(label, fn) {
+  if (!KNOBS.debug) return fn();
+  console.time(label);
+  try {
+    return fn();
+  } finally {
+    console.timeEnd(label);
+  }
+}
+
+let audioActive = false;
+let autoHangupTimer = null;
+
+function initAudioWatcher() {
+  const el = $("remoteAudio");
+  if (!el) return;
+  const onPlay = () => {
+    audioActive = true;
+    if (KNOBS.debug) logTrial("audio-play");
+  };
+  const onIdle = () => {
+    audioActive = false;
+    if (KNOBS.debug) logTrial("audio-idle");
+  };
+  el.addEventListener("play", onPlay);
+  el.addEventListener("playing", onPlay);
+  el.addEventListener("pause", onIdle);
+  el.addEventListener("ended", onIdle);
+  el.addEventListener("emptied", onIdle);
+}
+
+function scheduleAutoHangup() {
+  if (KNOBS.delayBeforeHangup == null) return;
+  if (autoHangupTimer) clearTimeout(autoHangupTimer);
+  autoHangupTimer = setTimeout(() => {
+    autoHangupTimer = null;
+    logTrial("auto-hangup-firing", { delay: KNOBS.delayBeforeHangup });
+    hangup();
+  }, KNOBS.delayBeforeHangup);
+  logTrial("auto-hangup-scheduled", { delay: KNOBS.delayBeforeHangup });
+}
+
+function initDebugInstrumentation() {
+  if (!KNOBS.debug) return;
+  try {
+    const obs = new PerformanceObserver((list) => {
+      for (const e of list.getEntries()) {
+        const att = e.attribution && e.attribution[0];
+        console.warn(
+          "[longtask]",
+          Math.round(e.duration) + "ms",
+          att
+            ? att.containerName || att.containerSrc || "unknown-script"
+            : "unknown-script"
+        );
+      }
+    });
+    obs.observe({ entryTypes: ["longtask"] });
+  } catch (err) {
+    console.warn("[longtask] observer unavailable", err);
+  }
+}
+
 // Same-origin when served by the app at /demo; otherwise the local
 // backend (browsers treat http://localhost as trustworthy from https).
 const sameOrigin =
@@ -46,14 +145,23 @@ async function placeCall() {
     if (!data.token) throw new Error(data.error || "no token returned");
 
     setStatus("Connecting…");
-    client = new TelnyxWebRTC.TelnyxRTC({
-      login_token: data.token,
-      env: "production",
-    });
+    client = timeIt("sdk-new-telnyxrtc", () =>
+      new TelnyxWebRTC.TelnyxRTC({
+        login_token: data.token,
+        env: "production",
+        ...(KNOBS.noReports ? { enableCallReports: false } : {}),
+        ...(KNOBS.noReconnect ? { autoReconnect: false } : {}),
+        ...(KNOBS.maxReconnect != null
+          ? { maxReconnectAttempts: KNOBS.maxReconnect }
+          : {}),
+      })
+    );
     client.remoteElement = "remoteAudio";
 
     try {
-      const mic = client.enableMicrophone();
+      const mic = timeIt("sdk-enable-microphone", () =>
+        client.enableMicrophone()
+      );
       if (mic && typeof mic.catch === "function") {
         mic.catch((micErr) => {
           console.error("enableMicrophone", micErr);
@@ -70,11 +178,15 @@ async function placeCall() {
 
     client.on("telnyx.ready", () => {
       setStatus("Dialing…");
-      currentCall = client.newCall({
-        destinationNumber: DESTINATION,
-        callerNumber: DESTINATION,
-        audio: true,
-      });
+      currentCall = timeIt("sdk-new-call", () =>
+        client.newCall({
+          destinationNumber: DESTINATION,
+          callerNumber: DESTINATION,
+          audio: true,
+          ...(KNOBS.callDebug ? { debug: true } : {}),
+          ...(KNOBS.debugOutput ? { debugOutput: KNOBS.debugOutput } : {}),
+        })
+      );
     });
 
     client.on("telnyx.notification", (notification) => {
@@ -94,7 +206,7 @@ async function placeCall() {
       endCall();
     });
 
-    client.connect();
+    timeIt("sdk-connect", () => client.connect());
   } catch (err) {
     console.error("placeCall", err);
     setStatus("Call failed: " + describeError(err));
@@ -113,6 +225,7 @@ function handleCallUpdate(call) {
       setStatus("In call");
       $("hangupBtn").classList.remove("hidden");
       startPolling();
+      scheduleAutoHangup();
       break;
     case "hangup":
     case "destroy":
@@ -126,6 +239,13 @@ function hangup() {
 }
 
 function endCall() {
+  const el = $("remoteAudio");
+  const audioActiveAtHangup = !!(el && !el.paused && !el.ended);
+  logTrial("hangup", {
+    audioActiveAtHangup,
+    audioActiveFlag: audioActive,
+    hadCall: !!currentCall,
+  });
   if (ending) return;
   ending = true;
 
@@ -167,6 +287,10 @@ function teardown() {
   if (endTimer) {
     clearTimeout(endTimer);
     endTimer = null;
+  }
+  if (autoHangupTimer) {
+    clearTimeout(autoHangupTimer);
+    autoHangupTimer = null;
   }
   if (client) {
     client.off("telnyx.error");
@@ -242,6 +366,10 @@ function stopPolling() {
   }
 }
 
+initAudioWatcher();
+renderTrialCfg();
+initDebugInstrumentation();
+logTrial("page-load");
 $("callBtn").addEventListener("click", placeCall);
 $("hangupBtn").addEventListener("click", hangup);
 window.addEventListener("beforeunload", teardown);
