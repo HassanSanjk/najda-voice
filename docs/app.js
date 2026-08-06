@@ -15,6 +15,8 @@ let currentCall = null;
 let pollTimer = null;
 let renderedTurns = 0;
 let callSid = null;
+let ending = false;
+let endTimer = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -35,7 +37,7 @@ function setStatus(text) {
 }
 
 async function placeCall() {
-  if (client) teardown();
+  teardown();
   $("callBtn").disabled = true;
   setStatus("Fetching token…");
   try {
@@ -89,8 +91,7 @@ async function placeCall() {
 
     client.on("telnyx.socket.close", () => {
       console.warn("telnyx.socket.close");
-      setStatus("Disconnected");
-      teardown();
+      endCall();
     });
 
     client.connect();
@@ -115,30 +116,58 @@ function handleCallUpdate(call) {
       break;
     case "hangup":
     case "destroy":
-      setStatus("Call ended");
-      $("hangupBtn").classList.add("hidden");
-      $("callBtn").disabled = false;
-      if (client) {
-        client.disconnect();
-        client = null;
-      }
-      currentCall = null;
-      setTimeout(stopPolling, 3000);
+      endCall();
       break;
   }
 }
 
 function hangup() {
-  try {
-    if (currentCall) currentCall.hangup();
-  } catch (e) {
-    console.error("hangup", e);
+  endCall();
+}
+
+function endCall() {
+  if (ending) return;
+  ending = true;
+
+  setStatus("Ending call…");
+  $("hangupBtn").classList.add("hidden");
+  $("callBtn").disabled = false;
+
+  if (currentCall) {
+    try {
+      currentCall.hangup();
+    } catch (e) {
+      console.error("hangup", e);
+    }
   }
-  if (client) client.disconnect();
+  if (client) {
+    client.off("telnyx.error");
+    client.off("telnyx.ready");
+    client.off("telnyx.notification");
+    client.off("telnyx.socket.close");
+    try {
+      client.disconnect();
+    } catch (e) {
+      console.error("disconnect", e);
+    }
+    client = null;
+  }
+  currentCall = null;
+
+  endTimer = setTimeout(() => {
+    stopPolling();
+    setStatus("Idle");
+    ending = false;
+    endTimer = null;
+  }, 3000);
 }
 
 function teardown() {
   stopPolling();
+  if (endTimer) {
+    clearTimeout(endTimer);
+    endTimer = null;
+  }
   if (client) {
     client.off("telnyx.error");
     client.off("telnyx.ready");
@@ -148,6 +177,7 @@ function teardown() {
     client = null;
   }
   currentCall = null;
+  ending = false;
   $("hangupBtn").classList.add("hidden");
   $("callBtn").disabled = false;
 }
