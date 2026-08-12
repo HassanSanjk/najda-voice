@@ -83,6 +83,7 @@ def create_app() -> FastAPI:
         CORSMiddleware,
         allow_origins=[
             "https://hassansanjk.github.io",
+            "https://najda-voice.duckdns.org",
             "http://localhost:8000",
             "http://127.0.0.1:8000",
         ],

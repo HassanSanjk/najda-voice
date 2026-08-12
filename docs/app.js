@@ -100,12 +100,10 @@ function initDebugInstrumentation() {
   }
 }
 
-// Same-origin when served by the app at /demo; otherwise the local
-// backend (browsers treat http://localhost as trustworthy from https).
-const sameOrigin =
-  location.protocol === "http:" &&
-  ["localhost", "127.0.0.1"].includes(location.hostname);
-const BACKEND_URL = sameOrigin ? "" : "http://localhost:8000";
+// Same-origin when served by the app itself (e.g. https://najda-voice.duckdns.org/demo).
+// Only fall back to an explicit backend URL when served from GitHub Pages.
+const isGithubPages = location.hostname === "hassansanjk.github.io";
+const BACKEND_URL = isGithubPages ? "https://najda-voice.duckdns.org" : "";
 document.getElementById("backend").textContent =
   BACKEND_URL || location.origin;
 
