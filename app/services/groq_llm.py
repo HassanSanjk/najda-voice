@@ -30,6 +30,13 @@ MODEL = "openai/gpt-oss-20b"
 _client = AsyncGroq(api_key=settings.groq_api_key)
 
 
+def _reasoning_effort() -> str:
+    value = settings.groq_reasoning_effort.strip().lower()
+    if value in ("low", "medium", "high"):
+        return value
+    return "low"
+
+
 async def stream_completion(messages: list[dict]) -> AsyncGenerator[str, None]:
     """
     Streams a chat completion from Groq token-by-token.
@@ -55,7 +62,7 @@ async def stream_completion(messages: list[dict]) -> AsyncGenerator[str, None]:
         # TTFT), and the raised cap leaves headroom; the caller-side retry +
         # canned-fallback safety net in voice.py stays regardless.
         max_completion_tokens=640,
-        reasoning_effort="low",
+        reasoning_effort=_reasoning_effort(),
     )
 
     async for chunk in stream:

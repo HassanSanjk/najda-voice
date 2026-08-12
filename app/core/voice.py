@@ -66,7 +66,7 @@ from app.core import language, memory
 from app.models.schemas import CallSession, Turn
 from app.prompts import kb_loader
 from app.prompts.prompt_builder import build_messages
-from app.services import deepgram_tts, elevenlabs_tts, groq_tts
+from app.services import elevenlabs_tts, groq_tts
 from app.services.deepgram_stt import DeepgramSTTStream
 from app.services.groq_llm import stream_completion
 from config import settings
@@ -900,6 +900,10 @@ async def _stream_and_queue_reply(
     except asyncio.CancelledError:
         for t in tts_tasks:
             t.cancel()
+        # Await the cancelled tasks so their cleanup actually unwinds
+        # (closing in-flight provider connections) before we re-raise —
+        # fire-and-forget .cancel() could leave responses half-consumed.
+        await asyncio.gather(*tts_tasks, return_exceptions=True)
         relay.cancel()
         try:
             await relay
@@ -918,6 +922,7 @@ async def _stream_and_queue_reply(
         # any more audio after _flush_utterance drains the queue.
         for t in tts_tasks:
             t.cancel()
+        await asyncio.gather(*tts_tasks, return_exceptions=True)
         relay.cancel()
         try:
             await relay
@@ -1015,9 +1020,7 @@ async def _synthesize_speech(text: str, lang: str) -> bytes:
         _tts_cache.move_to_end(cache_key)
         return cached
 
-    if provider == "deepgram_aura":
-        audio = await deepgram_tts.synthesize(text, language=lang)
-    elif provider == "groq_orpheus":
+    if provider == "groq_orpheus":
         audio = await groq_tts.synthesize(text, language=lang)
     elif provider == "elevenlabs":
         audio = await elevenlabs_tts.synthesize(text, language=lang)

@@ -93,9 +93,9 @@ najda-voice/
 │   │
 │   ├── services/
 │   │   ├── deepgram_stt.py     — Streaming STT (keepalive, UtteranceEnd)
-│   │   ├── deepgram_tts.py     — English TTS (Aura-2, rate-limited)
+│   │   ├── deepgram_tts.py     — English TTS (Aura-2, rollback-only)
 │   │   ├── elevenlabs_tts.py   — Arabic TTS fallback (Flash v2.5)
-│   │   ├── groq_tts.py         — Arabic TTS (Orpheus, WAV→mu-law)
+│   │   ├── groq_tts.py         — Arabic + English TTS (Orpheus, WAV→mu-law)
 │   │   └── groq_llm.py         — LLM streaming (gpt-oss-20b)
 │   │
 │   └── prompts/
@@ -141,12 +141,14 @@ Pydantic `BaseSettings` reading from `.env`. 17 fields total:
 | `telnyx_api_key` | `""` | Telnyx API key (required) |
 | `telnyx_phone_number` | `""` | Your Telnyx number |
 | `telnyx_telephony_credential_id` | `""` | For browser WebRTC dialer |
-| `deepgram_api_key` | `""` | Deepgram STT + TTS |
+| `deepgram_api_key` | `""` | Deepgram STT (TTS moved to Groq Orpheus) |
 | `stt_language_ar` | `"ar"` | Arabic STT dialect (ar-EG, ar-SA, etc.) |
-| `groq_api_key` | `""` | Groq LLM + Orpheus TTS |
+| `groq_api_key` | `""` | Groq LLM + Orpheus TTS (both languages) |
 | `tts_provider_ar` | `"groq"` | `"groq"` or `"elevenlabs"` |
-| `groq_tts_voice_ar` | `"aisha"` | Orpheus voice name |
+| `groq_tts_voice_ar` | `"aisha"` | Orpheus Arabic voice name |
+| `groq_tts_voice_en` | `"austin"` | Orpheus English voice name (`canopylabs/orpheus-v1-english`) |
 | `groq_tts_concurrency` | `1` | Concurrent TTS requests (keep 1 on free tier) |
+| `groq_reasoning_effort` | `"low"` | LLM reasoning effort (low/medium/high) — test medium for Arabic grammar |
 | `elevenlabs_api_key` | `""` | ElevenLabs (if using as Arabic TTS) |
 | `elevenlabs_voice_id_ar` | `""` | ElevenLabs voice ID for Arabic |
 | `app_env` | `"development"` | Controls debug logging + uvicorn reload |
@@ -324,14 +326,17 @@ Wraps Deepgram's `listen.v1.connect()` in an async context manager:
 - **`close()`** — Cancels keepalive loop, sends close stream, exits
   connection context.
 
-### `app/services/deepgram_tts.py` — English TTS (Aura-2)
+### `app/services/deepgram_tts.py` — English TTS (Aura-2) [rollback-only]
 
-- Model: `aura-2-apollo-en`
+- Model: `aura-2-orpheus-en` (default — `DEEPGRAM_TTS_MODEL_EN`)
 - Output: raw mu-law 8kHz (`container="none"`), directly playable by Telnyx.
+- **Status:** kept for rollback only. English TTS consolidated onto Groq
+  Orpheus (`canopylabs/orpheus-v1-english`) in Aug 2026 so both languages
+  share one provider/code path. To revert: set
+  `language.TTS_PROVIDER_BY_LANGUAGE["en"] = "deepgram_aura"` and restart.
 - **Rate limiting:** `asyncio.Semaphore(3)` caps concurrent requests. Live
   testing showed burst of 6+ sentence requests triggering Deepgram's 429
-  rate limit, dropping sentences. With playback at ~3s/sentence and
-  synthesis at ~1-2s, `Semaphore(3)` is inaudible and prevents the burst.
+  rate limit, dropping sentences.
 - Supports English only — raises `ValueError` for other languages.
 
 ### `app/services/elevenlabs_tts.py` — Arabic TTS (Fallback)
@@ -345,17 +350,20 @@ Wraps Deepgram's `listen.v1.connect()` in an async context manager:
 - Requires `ELEVENLABS_VOICE_ID_AR` — there is no safe default Arabic voice
   to hardcode because quality varies significantly.
 
-### `app/services/groq_tts.py` — Arabic TTS (Groq Orpheus)
+### `app/services/groq_tts.py` — Arabic + English TTS (Groq Orpheus)
 
-Default Arabic TTS provider. Model: `canopylabs/orpheus-arabic-saudi`.
+Default TTS provider for BOTH languages since Aug 2026:
+- Arabic: `canopylabs/orpheus-arabic-saudi` (voice via `GROQ_TTS_VOICE_AR`)
+- English: `canopylabs/orpheus-v1-english` (voice via `GROQ_TTS_VOICE_EN`)
 
 **Key implementation details:**
 
 - `response_format="wav"` — Orpheus only supports WAV, not raw mu-law.
   `_wav_to_mulaw_8k()` decodes via Python's `wave` module, converts to mono
-  if stereo, resamples to 8kHz, and encodes as mu-law. The `audioop-lts`
-  backport in requirements.txt exists for this (`audioop` removed from stdlib
-  in Python 3.13).
+  if stereo, resamples to 8kHz (reads the WAV header's real rate, so the
+  English model's higher native rate is handled), and encodes as mu-law. The
+  `audioop-lts` backport in requirements.txt exists for this (`audioop` removed
+  from stdlib in Python 3.13).
 - **200 character input limit.** Longer text is split at word boundaries
   (`_split_text()`) and synthesized sequentially. Sentence-level concurrency
   already happens in `voice.py`'s pipeline layer.
@@ -859,3 +867,28 @@ sentence for the entire call is pointless API spam that delays the
 inevitable silence. Permanently disabling Arabic TTS at the process level
 means later calls degrade to English-only gracefully instead of each
 call hitting the same error.
+
+### `@telnyx/webrtc@2.27.8` hangup heap-leak (SDK bug, confirmed not ours)
+
+Clicking Hang up on an active call triggered Chrome "Page Unresponsive"
+with heap climbing 4.8MB → 1.69GB in ~5s. A full CPU-profiler trace
+proved it's inside the SDK, not our code: exactly one click and one
+`hangup()` frame, then ~85% of 10,157 samples inside the bundle's
+minified `Ue` + loglevel `methodFactory` + `_captureHangupCallerStack`,
+and a second SDK-internal hangup sampled ~20s later. Reading the bundle
+source: `Ue` is a log-context serializer (JSON deep-copy) invoked from a
+module-scope `methodFactory` interception while a LogCollector is active;
+the SDK force-sets its internal logger to `debug` with no log-level
+option. The pattern fits a logging/retry loop entered on hangup —
+plausibly the 2.27.x rework of the hangup path (#581 async hangup, #582
+media-failure interrupt, #607 ICE-restart, #624 hangup-caller metadata).
+2.27.8 is the current latest stable, so there is no upgrade path.
+
+**Decision:** don't patch around an unconfirmed mechanism — follow the
+same measure-first discipline as the KB fix. Added trial knobs to
+`docs/app.js` (`?noReports`, `?noReconnect`, `?maxReconnect=N`,
+`?delayBeforeHangup=N`, `?callDebug`, `?debugOutput`, `?debug`) plus a
+measured `audioActiveAtHangup` stamp and config-stamped logging, ran a
+live trial matrix to isolate the trigger (mid-TTS vs idle) and the
+workaround knob, and drafted an upstream bug report. Once a knob is
+confirmed, bake it in as the default.

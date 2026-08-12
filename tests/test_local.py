@@ -132,24 +132,24 @@ def test_groq_llm():
     return passed
 
 
-def test_deepgram_tts():
+def test_groq_tts_en():
     print("\n" + "=" * 60)
-    print("TEST 4: Deepgram TTS (English)")
+    print("TEST 4: Groq TTS (English) routing")
     print("=" * 60)
-    from app.services.deepgram_tts import synthesize
+    from app.core.language import get_tts_provider
+    from app.services import groq_tts
 
-    async def run():
-        text = "Apply direct pressure to the wound with a clean cloth."
-        print(f"  Synthesizing: {text!r}")
-        audio = await synthesize(text, language="en")
-        print(f"  Audio bytes received: {len(audio)} bytes")
-        if len(audio) > 0:
-            with open("test_audio.raw", "wb") as f:
-                f.write(audio)
-            print("  Saved to test_audio.raw")
-        return len(audio) > 100
-
-    passed = asyncio.run(run())
+    provider = get_tts_provider("en")
+    model = groq_tts._model_for("en")
+    voice = groq_tts._voice_for("en")
+    print(f"  get_tts_provider('en') = {provider}")
+    print(f"  English model          = {model}")
+    print(f"  English voice          = {voice}")
+    passed = (
+        provider == "groq_orpheus"
+        and model == "canopylabs/orpheus-v1-english"
+        and bool(voice)
+    )
     print(f"\n  TEST 4: {'PASSED' if passed else 'FAILED'}")
     return passed
 
@@ -192,7 +192,7 @@ if __name__ == "__main__":
     results.append(("KB Loader", test_kb_loader()))
     results.append(("Prompt Builder", test_prompt_builder()))
     results.append(("Groq LLM", test_groq_llm()))
-    results.append(("Deepgram TTS", test_deepgram_tts()))
+    results.append(("Groq TTS (en)", test_groq_tts_en()))
     results.append(("FastAPI Startup", test_fastapi_startup()))
 
     print("\n" + "=" * 60)

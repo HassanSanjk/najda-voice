@@ -31,7 +31,7 @@
 | Telephony | **Telnyx**, using a **TeXML Application** (not "Voice API Application"/Call Control) | Twilio's trial account blocks calls from unverified caller IDs, and Malaysian numbers cannot be verified at all — Hassan literally could not call his own Twilio number without adding real payment. Telnyx has no such restriction (~$2 total setup cost). TeXML specifically (not the JSON-webhook Voice API/Call Control model) was required to match the Twilio-style XML+webhook flow already built. |
 | STT | **Deepgram Nova-3**, dual-stream (English + Arabic connections opened simultaneously per call) | Nova-3 has genuine Arabic dialect support (17 dialect codes incl. Sudanese `ar-SD`), but its `language="multi"` code-switching mode does **not** include Arabic (only en/es/fr/de/hi/ru/pt/ja/it/nl). Arabic is a separate **monolingual** model, and monolingual connections never populate the `languages` result field — so genuine auto-detection requires running both language models at once and arbitrating between them (see §5, item 9). |
 | LLM | **Groq**, model `openai/gpt-oss-20b` | Groq deprecated its entire Llama chat lineup (June 2026). `gpt-oss-20b` is the fastest hosted model on Groq (~963 tok/s, ~0.73s TTFT) — chosen deliberately over `qwen/qwen3.6-27b` (better multilingual benchmarks but ~8x the cost and meaningfully slower for the 30–50 token replies this project actually generates). Matches the project's "latency above all else" priority. |
-| TTS (English) | **Deepgram Aura-2** (`aura-2-apollo-en`) | Same platform as STT, reduces API surface. `encoding="mulaw", sample_rate=8000, container="none"` produces raw audio directly compatible with Telnyx, zero conversion needed. **Note:** switched from `aura-2-asteria-en` to `aura-2-apollo-en` (male voice) in commit `2b2a0c3` — the model string must stay in sync in BOTH `app/core/language.py::VOICE_BY_LANGUAGE` and `app/services/deepgram_tts.py::VOICE_MODEL`. |
+| TTS (English) | **Groq Orpheus English** (`canopylabs/orpheus-v1-english`) — *originally Deepgram Aura-2, changed Aug 2026* | Consolidated English onto the same Orpheus provider as Arabic (one SDK, one client, one semaphore, one WAV→mu-law path). Rationale: Deepgram English showed a ~1.3-1.6s fixed TTS floor vs ~0.4-0.9s for Groq Arabic, and two providers meant two leak/throttle surfaces and an audio-format asymmetry. `deepgram_tts.py` is **kept for rollback** (`language.py::TTS_PROVIDER_BY_LANGUAGE["en"]` is the switch). Voice via `GROQ_TTS_VOICE_EN` (default `austin`). Deepgram remains for STT only. |
 | TTS (Arabic) | **Groq-hosted Orpheus** (`canopylabs/orpheus-arabic-saudi`) — *originally ElevenLabs, changed mid-project* | Deepgram Aura has **zero** Arabic support at all (confirmed: Aura-2 covers en/es/nl/fr/de/it/ja only — permanent platform limitation, not a bug). ElevenLabs (`eleven_flash_v2_5`) was the original choice, but a live 402 `paid_plan_required` error was hit during real Arabic testing — ElevenLabs free-tier keys can't use library voices, so Arabic callers heard nothing while the system logged replies as "spoken" (silent failure). Switched to Groq Orpheus at Hassan's request for a free/cheap alternative, billed on the same `GROQ_API_KEY` as the LLM. ElevenLabs path is kept in the codebase and selectable via `TTS_PROVIDER_AR=elevenlabs`, just no longer the default. |
 | Backend | **FastAPI** (not Flask) | The whole pipeline is a chain of async I/O calls (telephony → STT → LLM → TTS). Hassan already knew Flask conceptually, so the transfer cost was low (~half a day for the async mental model). |
 | Hosting | **AWS EC2** (t2/t3.micro), **Docker** (`python:3.14-slim`) | Start/stop-per-demo strategy on free credit avoids Render's cold-start problem, which would ruin a live call demo. **Not yet deployed as of the last update** — still running locally via `python run.py` on Windows during development/testing. |
@@ -63,8 +63,8 @@ najda-voice/
 │   │   └── language.py              # Language/TTS-provider resolution
 │   ├── services/
 │   │   ├── deepgram_stt.py          # Streaming STT (dual-stream arbitration lives partly here, partly in core/voice.py)
-│   │   ├── deepgram_tts.py          # English TTS
-│   │   ├── groq_tts.py              # Arabic TTS via Groq Orpheus (NEW — replaces ElevenLabs as default)
+│   │   ├── deepgram_tts.py          # English TTS (rollback-only — kept since Aug 2026 consolidation)
+│   │   ├── groq_tts.py              # Arabic + English TTS via Groq Orpheus (single provider both langs)
 │   │   ├── elevenlabs_tts.py        # Kept, selectable via TTS_PROVIDER_AR, no longer default
 │   │   └── groq_llm.py              # Streaming LLM completion
 │   ├── prompts/
@@ -257,6 +257,7 @@ This is the most important section. Each entry below represents something **conf
 7. **KB breadth** — only 8 scenarios exist; no coverage for trauma/road accidents, stroke, seizures, poisoning, or drowning. Authoring more `knowledge/KB_*.yaml` files is a pure content task (schema is proven).
 8. **No mid-call language switching** after the initial arbitration lock (the architecture keeps only one STT stream alive post-lock).
 9. **Pause-based mid-sentence flush tradeoff** — the ~1 second `utterance_end_ms` endpointing window is a deliberate tuning choice; callers naturally recover from it, but it's tunable at the Deepgram `connect()` call if ever revisited.
+10. **`@telnyx/webrtc@2.27.8` hangup heap-leak freeze** — SDK-internal, profiler-proven not ours (single click → 5s, 8,613/10,157 samples in the bundle's `Ue`/`methodFactory`/`_captureHangupCallerStack`, heap 4.8MB→1.69GB; 2.27.8 is the latest stable, no upgrade path). Trial harness with knobs in `docs/app.js` (`?noReports`/`?noReconnect`/`?maxReconnect=N`/`?delayBeforeHangup=N`/`?callDebug`/`?debugOutput`/`?debug`); bug report drafted. Pending: live trial matrix to pick the workaround knob, then bake default + file upstream.
 
 ---
 
@@ -288,12 +289,14 @@ All settings are read from `.env` by `config.py` (pydantic-settings, `SettingsCo
 | `TELNYX_API_KEY` | (required) | Telnyx REST auth | Telnyx integration / webhook validation |
 | `TELNYX_PHONE_NUMBER` | (required) | The +1 number assigned to the TeXML Application | webhook + media WS |
 | `TELNYX_TELEPHONY_CREDENTIAL_ID` | `""` | WebRTC test-call JWT auth only (Mission Control → API Keys → Telephony Credentials). **Not** needed for the phone path. Missing → clear error from `/telnyx-token`. | `app/routes/telnyx_token.py` |
-| `DEEPGRAM_API_KEY` | (required) | STT + English TTS | `deepgram_stt.py`, `deepgram_tts.py` |
+| `DEEPGRAM_API_KEY` | (required) | STT only (TTS moved to Groq Orpheus) | `deepgram_stt.py` |
 | `STT_LANGUAGE_AR` | `"ar"` | Arabic dialect bias for Nova-3 (e.g. `ar-EG`, `ar-SA`; full list in `language.py::ARABIC_DIALECT_CODES`) | deepgram STT + arbitration |
-| `GROQ_API_KEY` | (required) | LLM **and** Arabic TTS (Orpheus — same key, no extra account) | `groq_llm.py`, `groq_tts.py` |
+| `GROQ_API_KEY` | (required) | LLM **and** TTS for both languages (Orpheus — same key, no extra account) | `groq_llm.py`, `groq_tts.py` |
 | `TTS_PROVIDER_AR` | `"groq"` | `"groq"` (Orpheus, default) or `"elevenlabs"` | `language.py::get_tts_provider()` |
-| `GROQ_TTS_VOICE_AR` | `"aisha"` (config default) | Orpheus voice. **Live `.env` sets `abdullah`** (user's choice — see §4.13). Options: abdullah/fahad/sultan/lulwa/noura/aisha | `groq_tts.py` |
+| `GROQ_TTS_VOICE_AR` | `"aisha"` (config default) | Orpheus Arabic voice. **Live `.env` sets `abdullah`** (user's choice — see §4.13). Options: abdullah/fahad/sultan/lulwa/noura/aisha | `groq_tts.py` |
+| `GROQ_TTS_VOICE_EN` | `"austin"` (config default) | Orpheus English voice (`canopylabs/orpheus-v1-english`) | `groq_tts.py` |
 | `GROQ_TTS_CONCURRENCY` | `1` | Orpheus request concurrency. Keep 1 on free tier (1200 tokens/min budget 429-storms on bursts); set 3 after Groq Developer tier. | `groq_tts.py` semaphore |
+| `GROQ_REASONING_EFFORT` | `"low"` | LLM reasoning effort (low/medium/high). "low" = fastest; "medium" was proposed to test Arabic grammar quality (observed non-word hallucinations at low). | `groq_llm.py` |
 | `ELEVENLABS_API_KEY` | `""` | Only when `TTS_PROVIDER_AR=elevenlabs` | `elevenlabs_tts.py` |
 | `ELEVENLABS_VOICE_ID_AR` | `""` | Only for ElevenLabs path; **deliberately no default** — empty → `RuntimeError` | `elevenlabs_tts.py` |
 | `APP_ENV` | `"development"` | Enables uvicorn `reload` in dev; `docker-compose.yml` forces `production` | `run.py`, Docker |

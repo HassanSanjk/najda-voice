@@ -13,10 +13,13 @@ with `async for`, not `await`.
 """
 
 import asyncio
+import logging
 
 from deepgram import AsyncDeepgramClient
 
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 SUPPORTED_LANGUAGES = {"en"}
 
@@ -27,8 +30,9 @@ SUPPORTED_LANGUAGES = {"en"}
 # inaudible to the caller.
 _concurrency = asyncio.Semaphore(3)
 
-# Deepgram Aura-2 voice. Confirmed real model id.
-VOICE_MODEL = "aura-2-apollo-en"
+# Deepgram Aura-2 voice for English. Read from env (DEEPGRAM_TTS_MODEL_EN);
+# keep in sync with language.VOICE_BY_LANGUAGE — both read this setting.
+VOICE_MODEL = settings.deepgram_tts_model_en
 
 # Twilio Media Streams expects 8kHz mu-law, no container/header.
 SAMPLE_RATE = 8000
@@ -57,12 +61,23 @@ async def synthesize(text: str, language: str = "en") -> bytes:
     # must be iterated with `async for`, not `await`.
     chunks: list[bytes] = []
     async with _concurrency:
-        async for chunk in _client.speak.v1.audio.generate(
+        generator = _client.speak.v1.audio.generate(
             text=text,
             model=VOICE_MODEL,
             encoding=ENCODING,
             sample_rate=SAMPLE_RATE,
             container="none",  # raw audio, no WAV/OGG wrapper — Twilio needs raw frames
-        ):
-            chunks.append(chunk)
+        )
+        try:
+            async for chunk in generator:
+                chunks.append(chunk)
+        except Exception as exc:
+            status = getattr(exc, "status_code", getattr(exc, "status", "?"))
+            logger.warning(f"[deepgram_tts] TTS request failed status={status}: {type(exc).__name__}")
+            raise
+        finally:
+            # Deterministic close on cancellation instead of relying on
+            # async-generator refcount GC — prevents dangling pooled
+            # connections when a barge-in cancels a mid-stream reply.
+            await generator.aclose()
     return b"".join(chunks)

@@ -12,6 +12,11 @@ class Settings(BaseSettings):
 
     # Deepgram
     deepgram_api_key: str = ""
+    # English Aura-2 TTS voice (Deepgram). Kept for ROLLBACK only — English
+    # now routes to Groq Orpheus (see TTS_PROVIDER_BY_LANGUAGE). To revert,
+    # set language.TTS_PROVIDER_BY_LANGUAGE["en"] back to "deepgram_aura"
+    # and set this voice in .env (DEEPGRAM_TTS_MODEL_EN).
+    deepgram_tts_model_en: str = "aura-2-orpheus-en"
     # Arabic STT dialect code for Nova-3 (default "ar" = pan-Arab/MSA).
     # Bias recognition toward the caller's dialect with e.g. ar-EG, ar-SA,
     # ar-JO, ar-MA... (full list in app/core/language.py ARABIC_DIALECT_CODES).
@@ -26,10 +31,20 @@ class Settings(BaseSettings):
     # Orpheus Arabic voice: abdullah, fahad, sultan (male); lulwa, noura,
     # aisha (female). Listen before changing — run scripts/test_arabic_tts.py.
     groq_tts_voice_ar: str = "aisha"
+    # Orpheus English voice for canopylabs/orpheus-v1-english (Groq docs
+    # example voice is "austin"). English TTS now routes to Groq Orpheus —
+    # one provider, one code path for both languages. Deepgram remains for
+    # STT only.
+    groq_tts_voice_en: str = "austin"
+    groq_tts_model_en: str = "canopylabs/orpheus-v1-english"
     # Concurrent Orpheus TTS requests. Keep 1 on the Groq FREE tier (its
     # 1200 tokens/min budget 429-storms on bursts). After upgrading to the
     # Developer tier, 3 makes multi-sentence replies snappier.
     groq_tts_concurrency: int = 1
+    # LLM reasoning effort for the gpt-oss-20b chat model. "low" = fastest,
+    # occasionally trades grammatical care for speed (observed in Arabic
+    # replies). "medium" tests whether grammar improves at a small TTFT cost.
+    groq_reasoning_effort: str = "low"
 
     # ElevenLabs (Arabic TTS alternative — only used when TTS_PROVIDER_AR=elevenlabs.
     # NOTE: free-tier ElevenLabs keys cannot use *library* voices via API.)

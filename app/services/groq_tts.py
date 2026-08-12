@@ -1,5 +1,5 @@
 """
-Groq-hosted Orpheus TTS client — Arabic (Saudi dialect) speech.
+Groq-hosted Orpheus TTS client — Arabic (Saudi dialect) AND English speech.
 
 Why this exists (July 2026): ElevenLabs was the original Arabic TTS
 choice, but its free tier rejects *library* voices via API (402
@@ -9,10 +9,18 @@ project already uses for its LLM — no extra account, no extra env vars,
 and $40/1M characters on paid tiers (a full call is a fraction of a
 cent). ElevenLabs remains selectable via TTS_PROVIDER_AR=elevenlabs.
 
+Since Jan 2026 Groq also hosts an English Orpheus model
+(canopylabs/orpheus-v1-english, $22/1M chars) — English TTS was
+consolidated onto it (Aug 2026) so both languages share ONE provider,
+client, conversion path and concurrency policy, replacing Deepgram Aura.
+Deepgram remains for STT only.
+
 Verified against Groq's current docs and the installed groq SDK (1.5.0):
-- Model "canopylabs/orpheus-arabic-saudi" — Groq's supported replacement
-  for the deprecated playai-tts-arabic. Six Saudi voices: abdullah,
-  fahad, sultan (male); lulwa, noura, aisha (female).
+- Arabic: "canopylabs/orpheus-arabic-saudi" — Groq's supported replacement
+  for the deprecated playai-tts-arabic. Six voices: abdullah, fahad,
+  sultan (male); lulwa, noura, aisha (female).
+- English: "canopylabs/orpheus-v1-english" — six voices, vocal-direction
+  tags supported.
 - Orpheus supports ONLY response_format="wav" (the SDK's "mulaw" literal
   applies to the legacy playai models). We convert WAV -> PCM -> 8kHz
   mu-law locally with audioop — the audioop-lts backport in
@@ -28,17 +36,22 @@ Verified against Groq's current docs and the installed groq SDK (1.5.0):
 import asyncio
 import audioop  # stdlib < 3.13; audioop-lts backport on 3.13+
 import io
+import logging
 import wave
 
 from groq import AsyncGroq
 
 from config import settings
 
-MODEL = "canopylabs/orpheus-arabic-saudi"
-DEFAULT_VOICE = "aisha"  # professional/clear female — overridable via GROQ_TTS_VOICE_AR
+logger = logging.getLogger(__name__)
+
+MODEL = "canopylabs/orpheus-arabic-saudi"  # Arabic (legacy name — imported by scripts)
+ENGLISH_MODEL = settings.groq_tts_model_en  # "canopylabs/orpheus-v1-english" (also env-overridable)
+DEFAULT_VOICE = "aisha"  # Arabic default — professional/clear female
+DEFAULT_VOICE_EN = "austin"  # English default — Groq docs example voice (GROQ_TTS_VOICE_EN overrides)
 
 TARGET_RATE = 8000  # Telnyx PCMU
-MAX_INPUT_CHARS = 200  # hard Orpheus API limit per request
+MAX_INPUT_CHARS = 200  # hard Orpheus API limit per request (both models)
 
 _client = AsyncGroq(api_key=settings.groq_api_key)
 
@@ -100,23 +113,48 @@ def _wav_to_mulaw_8k(wav_bytes: bytes) -> bytes:
     return audioop.lin2ulaw(pcm, 2)
 
 
+def _model_for(language: str) -> str:
+    """Returns the Orpheus model for the language (Arabic or English)."""
+    return MODEL if language == "ar" else ENGLISH_MODEL
+
+
+def _voice_for(language: str) -> str:
+    """Returns the configured Orpheus voice for the language."""
+    if language == "ar":
+        return settings.groq_tts_voice_ar or DEFAULT_VOICE
+    return settings.groq_tts_voice_en or DEFAULT_VOICE_EN
+
+
 async def synthesize(text: str, language: str = "ar") -> bytes:
-    """Synthesizes Arabic speech via Groq Orpheus and returns raw mu-law
-    8kHz bytes. `language` is accepted for interface parity with the other
-    TTS providers; Orpheus Arabic is a single-language model."""
-    voice = settings.groq_tts_voice_ar or DEFAULT_VOICE
+    """Synthesizes speech via Groq Orpheus and returns raw mu-law 8kHz
+    bytes. Arabic routes to `orpheus-arabic-saudi`, English to
+    `orpheus-v1-english` — identical API shape, so both share the same
+    WAV->mulaw conversion and 200-char input cap."""
+    model = _model_for(language)
+    voice = _voice_for(language)
 
     mulaw_parts: list[bytes] = []
     for piece in _split_text(text):
         if not any(ch.isalnum() for ch in piece):
             continue  # API rejects letterless input (400) — e.g. a stray ")"
         async with _concurrency:
-            response = await _client.audio.speech.create(
-                model=MODEL,
-                voice=voice,
-                input=piece,
-                response_format="wav",
-            )
-            wav_bytes = await response.read()
+            try:
+                response = await _client.audio.speech.create(
+                    model=model,
+                    voice=voice,
+                    input=piece,
+                    response_format="wav",
+                )
+            except Exception as exc:
+                status = getattr(exc, "status_code", getattr(exc, "status", "?"))
+                logger.warning(f"[groq_tts] TTS request failed status={status}: {type(exc).__name__}")
+                raise
+            try:
+                wav_bytes = await response.read()
+            finally:
+                # read() auto-closes on completion; this covers cancellation /
+                # early-exit paths so the pooled connection isn't left dangling.
+                if not response.is_closed:
+                    await response.close()
         mulaw_parts.append(_wav_to_mulaw_8k(wav_bytes))
     return b"".join(mulaw_parts)

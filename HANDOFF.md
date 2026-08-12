@@ -6,9 +6,9 @@ This document summarizes a full review-and-fix cycle performed on Najda Voice, v
 
 Bilingual (English/Arabic) AI voice agent guiding callers through first-aid emergencies over a phone call.
 
-Pipeline: Telnyx (telephony, TeXML + bidirectional media WebSocket) → FastAPI (`app/`) → Deepgram Nova-3 (STT, streaming) → Groq `openai/gpt-oss-20b` (LLM) → TTS: Deepgram Aura-2 (English) / **Groq-hosted Orpheus `canopylabs/orpheus-arabic-saudi` (Arabic — changed this cycle, see §4)** → mu-law 8 kHz audio back to caller.
+Pipeline: Telnyx (telephony, TeXML + bidirectional media WebSocket) → FastAPI (`app/`) → Deepgram Nova-3 (STT, streaming) → Groq `openai/gpt-oss-20b` (LLM) → TTS: **Groq-hosted Orpheus for both languages** (`canopylabs/orpheus-arabic-saudi` Arabic, `canopylabs/orpheus-v1-english` English — English consolidated Aug 2026) → mu-law 8 kHz audio back to caller.
 
-Key modules: `app/core/voice.py` (turn orchestrator — most logic lives here), `app/services/deepgram_stt.py`, `deepgram_tts.py`, `groq_tts.py` (new), `elevenlabs_tts.py` (kept, no longer default), `groq_llm.py`, `app/core/language.py`, `app/core/memory.py` (summarizing history), `app/prompts/kb_loader.py` + `knowledge/KB_*.yaml` (8 scenario files), `app/routes/voice.py` (webhook + media WS), `app/routes/telnyx_token.py` (WebRTC test tokens), `config.py` (pydantic-settings, `.env`).
+Key modules: `app/core/voice.py` (turn orchestrator — most logic lives here), `app/services/deepgram_stt.py`, `deepgram_tts.py` (rollback-only), `groq_tts.py` (both languages), `elevenlabs_tts.py` (kept, no longer default), `groq_llm.py`, `app/core/language.py`, `app/core/memory.py` (summarizing history), `app/prompts/kb_loader.py` + `knowledge/KB_*.yaml` (8 scenario files), `app/routes/voice.py` (webhook + media WS), `app/routes/telnyx_token.py` (WebRTC test tokens), `config.py` (pydantic-settings, `.env`).
 
 Runtime: Python 3.14 venv on Windows (dev), Docker (python:3.14-slim) for deployment. `audioop-lts` backport provides `audioop` on 3.13+.
 
