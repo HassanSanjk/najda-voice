@@ -194,7 +194,7 @@ _greeting_lock = asyncio.Lock()
 # set, later calls run English-only instead of opening an ar STT stream whose
 # replies could never be spoken (observed live: ElevenLabs 402
 # "paid_plan_required" on a library voice left an Arabic caller in silence).
-_tts_health = {"ar_dead": False}
+_tts_health = {"ar_dead": False, "en_dead": False}
 
 
 def _arabic_enabled() -> bool:
@@ -219,6 +219,14 @@ def arabic_tts_configured() -> bool:
     return False
 
 
+def _lang_tts_dead(lang: str) -> bool:
+    """True when this language's TTS provider was permanently marked dead
+    for the process (auth/plan/model-terms failures — see _note_tts_failure).
+    Retrying against a dead provider is pointless API spam, and speaking
+    into it produces guaranteed silence."""
+    return bool(_tts_health.get(f"{lang}_dead"))
+
+
 def _note_tts_failure(lang: str, exc: BaseException) -> bool:
     """Classifies a TTS failure. Returns True when it's permanent (retry is
     pointless). Marks Arabic TTS dead for the process on permanent failures
@@ -230,27 +238,38 @@ def _note_tts_failure(lang: str, exc: BaseException) -> bool:
         # a model's terms in the console — permanent until human action.
         status == 400 and "model_terms_required" in body_text
     )
-    if permanent and lang == "ar" and not _tts_health["ar_dead"]:
-        _tts_health["ar_dead"] = True
+    flag = f"{lang}_dead"
+    if permanent and lang in ("ar", "en") and not _tts_health[flag]:
+        _tts_health[flag] = True
         detail = getattr(exc, "body", None) or exc
-        provider = language.get_tts_provider("ar")
+        provider = language.get_tts_provider(lang)
+        if lang == "ar":
+            impact = "Calls now run English-only."
+        else:
+            impact = "English replies degrade to a spoken trouble notice (or silence); Arabic calls are unaffected."
         hint = ""
-        if provider == "elevenlabs":
+        if provider == "elevenlabs" and lang == "ar":
             hint = (
                 " If this is ElevenLabs 402 paid_plan_required: free-tier API keys cannot "
                 "use *library* voices — pick a premade voice, upgrade the plan, or switch "
                 "to the default Groq provider by removing TTS_PROVIDER_AR from .env."
             )
         elif provider == "groq_orpheus":
+            model_path = (
+                "canopylabs%2Forpheus-arabic-saudi"
+                if lang == "ar"
+                else "canopylabs%2Forpheus-v1-english"
+            )
             hint = (
                 " If the error mentions model_terms_required: the org admin must accept "
                 "the model terms ONCE at https://console.groq.com/playground?model="
-                "canopylabs%2Forpheus-arabic-saudi — then restart. Otherwise check Model "
-                "Permissions/billing at console.groq.com, or set TTS_PROVIDER_AR=elevenlabs."
+                f"{model_path} — then restart. Otherwise check Model "
+                "Permissions/billing at console.groq.com."
+                + (" Or set TTS_PROVIDER_AR=elevenlabs." if lang == "ar" else "")
             )
         logger.error(
-            f"Arabic TTS ({provider}) marked UNUSABLE for this process (HTTP {status}): "
-            f"{detail}. Calls now run English-only.{hint}"
+            f"{lang.upper()} TTS ({provider}) marked UNUSABLE for this process (HTTP {status}): "
+            f"{detail}. {impact}{hint}"
         )
     return permanent
 
@@ -265,6 +284,10 @@ async def prewarm_greeting_cache() -> None:
             if lang in _greeting_audio_cache:
                 continue
             if lang == "ar" and not _arabic_enabled():
+                continue
+            if _lang_tts_dead(lang):
+                # Permanently dead provider (auth/plan/model-terms) — no
+                # point re-attempting on every lazy prewarm.
                 continue
             try:
                 _greeting_audio_cache[lang] = await _synthesize_speech(text, lang)
@@ -409,7 +432,9 @@ async def _queue_greeting(session: CallSession) -> None:
     spoken_parts: list[str] = []
     missing = [
         lang for lang in ("en", "ar")
-        if lang not in _greeting_audio_cache and (lang != "ar" or _arabic_enabled())
+        if lang not in _greeting_audio_cache
+        and (lang != "ar" or _arabic_enabled())
+        and not _lang_tts_dead(lang)
     ]
 
     for lang in ("en", "ar"):
@@ -592,11 +617,20 @@ async def _decide_language(session: CallSession, reason: str = "") -> None:
     decisive = gap >= DECISION_MARGIN and len(texts[winner]) >= MIN_LOCK_TEXT_CHARS
     lock = decisive or rounds >= MAX_ARBITRATION_ROUNDS or len(streams) < 2
 
-    # Never lock into a language we cannot speak: if Arabic TTS is known
-    # unusable, an Arabic lock would produce silent replies.
+    # Never lock into a language we cannot speak: if a language's TTS is
+    # known unusable, locking into it would produce silent replies. Lock
+    # the other side instead ("something speakable beats silence"). Kept
+    # symmetric: English once had a trustworthy provider (Deepgram Aura)
+    # while Arabic was fragile, but English now rides Groq Orpheus too —
+    # the same provider with a documented permanent-failure history — so
+    # neither language gets a privileged escape hatch.
     if winner == "ar" and _tts_health["ar_dead"] and "en" in streams:
         logger.error(f"[{call_sid}] caller appears to speak Arabic but Arabic TTS is unusable — locking 'en'")
         winner = "en"
+        lock = True
+    elif winner == "en" and _tts_health["en_dead"] and "ar" in streams:
+        logger.error(f"[{call_sid}] caller appears to speak English but English TTS is unusable — locking 'ar'")
+        winner = "ar"
         lock = True
 
     session.language = winner
@@ -747,6 +781,45 @@ def _extract_complete_sentences(buf: str) -> tuple[list[str], str]:
     return sentences, current
 
 
+def _record_delivered_turn(call_sid: str, lang: str, scenario_hint: str | None, text: str) -> None:
+    """Records an assistant turn into memory and marks its KB steps as
+    delivered. `text` is the verbatim reply the caller actually heard
+    (the full reply on the normal path; the exact-delivered subset on a
+    barge-in). Steps are marked "given" only for what was spoken — a
+    turn with no steps verbalized marks nothing."""
+    if not text:
+        return
+    memory.add_turn(call_sid, "assistant", text)
+    if not scenario_hint:
+        return
+    delivered = kb_loader.detect_delivered_branches(scenario_hint, lang, text)
+    triage_q = kb_loader.detect_triage_delivered(scenario_hint, lang, text)
+    if triage_q:
+        delivered.add(triage_q)
+    memory.mark_steps_given(call_sid, delivered)
+
+
+def _record_barge_in_delivered(call_sid: str, delivered: list[str], lang: str, scenario_hint: str | None) -> None:
+    """Barge-in variant of _record_delivered_turn. `delivered` holds every
+    sentence relayed to the audio queue (FIFO, one item per sentence, in
+    the same order — this reply is the queue's only producer). The sender
+    loop pops FIFO, so whatever is still in the queue is the TAIL of
+    `delivered`, and _flush_utterance is about to drain exactly those —
+    meaning they were queued but never reached the caller's ear. Subtract
+    them before recording.
+
+    The one producer that could break the "queue == this reply" invariant
+    is a lazy greeting part slipping in during _flush_utterance's
+    drain→reply-registration window. That race is rare and fails SAFE:
+    it over-truncates, under-marking (false-negative "given"), never the
+    false-positive that suppresses a safety re-statement."""
+    queue = _audio_queues.get(call_sid)
+    unsent = queue.qsize() if queue is not None else 0
+    if unsent:
+        delivered = delivered[:-unsent]
+    _record_delivered_turn(call_sid, lang, scenario_hint, " ".join(delivered))
+
+
 async def _generate_reply(session: CallSession, utterance_received_at: float) -> None:
     call_sid = session.call_sid
     lang = session.language or "en"
@@ -760,7 +833,7 @@ async def _generate_reply(session: CallSession, utterance_received_at: float) ->
 
     full_reply, spoke_any = await _stream_and_queue_reply(call_sid, messages, lang, utterance_received_at, scenario_hint)
 
-    if not full_reply and not spoke_any:
+    if not full_reply and not spoke_any and not _lang_tts_dead(lang):
         logger.warning(f"[{call_sid}] Groq returned an empty reply, retrying once")
         full_reply, spoke_any = await _stream_and_queue_reply(call_sid, messages, lang, time.monotonic(), scenario_hint)
 
@@ -773,7 +846,13 @@ async def _generate_reply(session: CallSession, utterance_received_at: float) ->
         else:
             fallback_text = FALLBACK_TEXT_BY_LANGUAGE.get(lang, FALLBACK_TEXT_BY_LANGUAGE["en"])
             fallback_lang = lang
-        await _speak_with_retry(call_sid, fallback_text, fallback_lang)
+        if _lang_tts_dead(fallback_lang):
+            # No speakable language left (e.g. an English-only call whose
+            # EN TTS died): record the turn so memory stays consistent, but
+            # skip the doomed TTS attempt — it would fail twice into silence.
+            logger.error(f"[{call_sid}] no speakable fallback for '{fallback_lang}' — recording turn without audio")
+        else:
+            await _speak_with_retry(call_sid, fallback_text, fallback_lang)
         memory.add_turn(call_sid, "assistant", fallback_text)
         return
 
@@ -789,30 +868,21 @@ async def _generate_reply(session: CallSession, utterance_received_at: float) ->
         else:
             notice_text = TTS_TROUBLE_TEXT_BY_LANGUAGE.get(lang, TTS_TROUBLE_TEXT_BY_LANGUAGE["en"])
             notice_lang = lang
-        await _speak_with_retry(call_sid, notice_text, notice_lang)
+        if _lang_tts_dead(notice_lang):
+            logger.error(f"[{call_sid}] trouble-notice language '{notice_lang}' has no working TTS — recording without audio")
+        else:
+            await _speak_with_retry(call_sid, notice_text, notice_lang)
         memory.add_turn(call_sid, "assistant", notice_text)
         return
 
     if full_reply:
+        # Reached only past the two early-return branches above, i.e. only
+        # when spoke_any was True — steps are marked "given" only when the
+        # caller actually heard audio, never on the silent-failure paths.
+        # _record_delivered_turn keeps the marking branch-aware (only steps
+        # the reply verbalized, triage folded in) for the anti-repeat logic.
         logger.info(f"[{call_sid}] assistant ({lang}, scenario={scenario_hint}): {full_reply!r}")
-        memory.add_turn(call_sid, "assistant", full_reply)
-        if scenario_hint:
-            # Reached only past the two early-return branches above, i.e.
-            # only when spoke_any was True on whichever attempt succeeded —
-            # steps are marked "given" only when the caller actually heard
-            # audio, never on the silent-failure paths those branches exist
-            # to catch. Branch-aware: only steps from branches whose content
-            # the reply actually verbalized get marked, so a triage-only
-            # turn (no steps spoken yet) marks nothing. The triage question
-            # is folded into the same set via detect_triage_delivered, so an
-            # unclassifiable STT-garbled answer can't trigger a verbatim
-            # repeat of the triage question (confirmed live: asked twice
-            # word-for-word at 00:52:03/09 on the Aug 2 test call).
-            delivered = kb_loader.detect_delivered_branches(scenario_hint, lang, full_reply)
-            triage_q = kb_loader.detect_triage_delivered(scenario_hint, lang, full_reply)
-            if triage_q:
-                delivered.add(triage_q)
-            memory.mark_steps_given(call_sid, delivered)
+        _record_delivered_turn(call_sid, lang, scenario_hint, full_reply)
 
 
 async def _stream_and_queue_reply(
@@ -838,7 +908,8 @@ async def _stream_and_queue_reply(
     full_reply_parts: list[str] = []
     tts_tasks: list[asyncio.Task] = []
     task_queue: asyncio.Queue = asyncio.Queue()
-    relay = asyncio.create_task(_relay_tts_audio(call_sid, task_queue))
+    delivered: list[str] = []
+    relay = asyncio.create_task(_relay_tts_audio(call_sid, task_queue, delivered))
     first_token_logged = False
     groq_failed = False
     seen_sentences: set[str] = set()
@@ -871,7 +942,7 @@ async def _stream_and_queue_reply(
         sentence_count += 1
         t = asyncio.create_task(_synthesize_speech_timed(call_sid, sentence, lang))
         tts_tasks.append(t)
-        task_queue.put_nowait(t)
+        task_queue.put_nowait((sentence, t))
 
         if scenario_hint is None and sentence_count >= MAX_SENTENCES_NO_SCENARIO:
             capped = True
@@ -909,6 +980,13 @@ async def _stream_and_queue_reply(
             await relay
         except (asyncio.CancelledError, Exception):
             pass
+        # Barge-in memory: record only the sentences whose audio actually
+        # left the queue before the interrupt (exact-delivered), so KB
+        # steps the caller never heard aren't marked "given" — a false
+        # positive there can make the model skip re-stating something
+        # safety-relevant. Runs after relay is fully dead so the queue is
+        # stable; _flush_utterance drains the remainder right after us.
+        _record_barge_in_delivered(call_sid, delivered, lang, scenario_hint)
         raise
     except Exception:
         logger.exception(f"[{call_sid}] Groq completion failed mid-stream")
@@ -928,6 +1006,7 @@ async def _stream_and_queue_reply(
             await relay
         except (asyncio.CancelledError, Exception):
             pass
+        _record_barge_in_delivered(call_sid, delivered, lang, scenario_hint)
         raise
 
     full_text = " ".join(full_reply_parts).strip()
@@ -938,15 +1017,18 @@ async def _stream_and_queue_reply(
     return full_text, queued_count > 0
 
 
-async def _relay_tts_audio(call_sid: str, task_queue: asyncio.Queue) -> int:
+async def _relay_tts_audio(call_sid: str, task_queue: asyncio.Queue, delivered: list[str]) -> int:
     """Awaits TTS tasks in original sentence order and queues each
     sentence's audio as soon as it's ready. Returns how many sentences
-    actually got queued."""
+    actually got queued. Appends each sentence to `delivered` the moment
+    its audio is queued — in lockstep with the queue, so a barge-in can
+    later subtract what was still unsent (see _record_barge_in_delivered)."""
     queued = 0
     while True:
-        tts_task = await task_queue.get()
-        if tts_task is None:
+        item = await task_queue.get()
+        if item is None:
             return queued
+        sentence, tts_task = item
         try:
             audio_bytes = await tts_task
         except asyncio.CancelledError:
@@ -958,6 +1040,7 @@ async def _relay_tts_audio(call_sid: str, task_queue: asyncio.Queue) -> int:
             queue = _audio_queues.get(call_sid)
             if queue is not None:
                 queue.put_nowait(audio_bytes)
+                delivered.append(sentence)
                 queued += 1
 
 

@@ -61,7 +61,9 @@ All of these were driven by confirmed live failures or the original brief's flag
 
 ## 5. TTS health model & degradation ladder
 
-`_tts_health["ar_dead"]` (process-level) is set when Arabic synthesis fails with a **permanent-class** error: HTTP 401/402/403/404, or Groq's 400 `model_terms_required`. Effects: no retry on permanent errors (they were being retried per sentence), one loud actionable log (with the exact console URL / fix per provider), later calls run English-only (ar STT stream not opened — never detect a language we can't speak), undecided arbitration never locks ar, and if a locked-ar call generates text but zero audio, an ENGLISH notice is spoken ("technical trouble speaking Arabic… continue in English") — memory records the notice, not the unheard reply. The same en-notice applies on the empty-reply fallback path. 429s are deliberately NOT permanent (minute-window recovery; SDK honors retry-after). Arabic disabled-at-startup logs the true reason (unconfigured vs marked-dead).
+`_tts_health["ar_dead"]`/`["en_dead"]` (process-level) are set when that language's synthesis fails with a **permanent-class** error: HTTP 401/402/403/404, or Groq's 400 `model_terms_required`. Effects: no retry on permanent errors (they were being retried per sentence), one loud actionable log (with the exact console URL / fix per provider and per language), and a symmetric degradation ladder — ar-dead runs English-only (ar STT stream not opened, arbitration never locks ar, English notice spoken with memory recording the notice); en-dead runs Arabic-only where an ar stream exists, and on a pure-English call the fallback/notice path records the turn WITHOUT a doomed TTS attempt (no silence-promising retries). Greeting prewarm and the empty-reply retry skip dead languages. 429s are deliberately NOT permanent (minute-window recovery; SDK honors retry-after). Arabic disabled-at-startup logs the true reason (unconfigured vs marked-dead).
+
+Related hardening (same cycle, see PROJECT_MEMORY §4.30): all REST provider clients carry `PROVIDER_TIMEOUT_SECONDS=60` (per-chunk read semantics verified at SDK source level — safe for long LLM streams, kills genuinely hung requests; Deepgram STT WebSocket excluded); and the barge-in memory hole is closed — sentences queued-but-not-yet-sent at an interrupt are subtracted from the `_given_steps`/memory recording, so a caller never gets a step re-asked AND never has a safety step marked "given" before hearing it.
 
 ## 6. KB / scenario matching fixes (`app/prompts/kb_loader.py`)
 
@@ -73,7 +75,7 @@ All of these were driven by confirmed live failures or the original brief's flag
 
 - `/telnyx-token` router existed but was **never mounted** in `main.py` (WebRTC test auth 404'd), and mounting exposed a missing `telnyx_telephony_credential_id` field in `config.py` (would have 500'd). Both fixed; `.env.example` updated.
 - `main.py` lifespan: greeting prewarm task; accurate Arabic-provider status logging.
-- `.env` additions this cycle: `GROQ_TTS_VOICE_AR=abdullah` (set), and available knobs `TTS_PROVIDER_AR`, `GROQ_TTS_CONCURRENCY`, `STT_LANGUAGE_AR` (documented in `.env.example`).
+- `.env` additions this cycle: `GROQ_TTS_VOICE_AR=abdullah` (set), and available knobs `TTS_PROVIDER_AR`, `GROQ_TTS_CONCURRENCY`, `STT_LANGUAGE_AR`, `PROVIDER_TIMEOUT_SECONDS` (documented in `.env.example`).
 
 ## 8. Confirmed-facts ledger (original brief items — status)
 

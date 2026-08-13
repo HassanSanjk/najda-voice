@@ -51,6 +51,15 @@ class Settings(BaseSettings):
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id_ar: str = ""
 
+    # Per-provider HTTP timeout (seconds), applied at client construction to
+    # every REST provider (Groq TTS/LLM, Deepgram TTS, ElevenLabs). Passed to
+    # httpx as a bare float, which sets connect/read/write/pool per-operation
+    # and treats the read timeout as PER-CHUNK for streaming — so long LLM
+    # streams survive as long as tokens keep arriving, but a genuinely hung
+    # request dies instead of hanging the reply task forever. Deepgram STT is
+    # excluded (WebSocket; idle covered by app-level keepalive/timeouts).
+    provider_timeout_seconds: float = 60.0
+
     # App
     app_env: str = "development"
     public_base_url: str = ""

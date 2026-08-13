@@ -53,7 +53,7 @@ DEFAULT_VOICE_EN = "austin"  # English default — Groq docs example voice (GROQ
 TARGET_RATE = 8000  # Telnyx PCMU
 MAX_INPUT_CHARS = 200  # hard Orpheus API limit per request (both models)
 
-_client = AsyncGroq(api_key=settings.groq_api_key)
+_client = AsyncGroq(api_key=settings.groq_api_key, timeout=settings.provider_timeout_seconds)
 
 # Free-tier Orpheus has a small per-minute token budget (observed: 1200/min,
 # ~1 token per character). The reply pipeline fires every sentence's TTS

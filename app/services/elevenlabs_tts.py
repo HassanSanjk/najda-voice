@@ -22,7 +22,7 @@ from config import settings
 MODEL_ID = "eleven_flash_v2_5"
 OUTPUT_FORMAT = "ulaw_8000"  # matches Twilio's native format directly
 
-_client = AsyncElevenLabs(api_key=settings.elevenlabs_api_key)
+_client = AsyncElevenLabs(api_key=settings.elevenlabs_api_key, timeout=settings.provider_timeout_seconds)
 
 
 async def synthesize(text: str, language: str = "ar") -> bytes:

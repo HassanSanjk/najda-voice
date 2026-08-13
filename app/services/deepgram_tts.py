@@ -38,7 +38,7 @@ VOICE_MODEL = settings.deepgram_tts_model_en
 SAMPLE_RATE = 8000
 ENCODING = "mulaw"
 
-_client = AsyncDeepgramClient(api_key=settings.deepgram_api_key)
+_client = AsyncDeepgramClient(api_key=settings.deepgram_api_key, timeout=settings.provider_timeout_seconds)
 
 
 async def synthesize(text: str, language: str = "en") -> bytes:

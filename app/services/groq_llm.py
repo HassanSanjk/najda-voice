@@ -27,7 +27,7 @@ from config import settings
 # favors a different model.
 MODEL = "openai/gpt-oss-20b"
 
-_client = AsyncGroq(api_key=settings.groq_api_key)
+_client = AsyncGroq(api_key=settings.groq_api_key, timeout=settings.provider_timeout_seconds)
 
 
 def _reasoning_effort() -> str:
