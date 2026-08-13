@@ -72,7 +72,7 @@ najda-voice/
 ├── run.py                      — uvicorn entrypoint
 ├── requirements.txt            — pip dependencies
 ├── Dockerfile                  — container image (python:3.14-slim)
-├── docker-compose.yml          — EC2 deployment (with healthcheck)
+├── docker-compose.yml          — production deployment on Oracle Cloud (with healthcheck)
 ├── .env.example                — all 17 config fields documented
 │
 ├── app/
@@ -117,7 +117,7 @@ najda-voice/
 ├── scripts/
 │   ├── start.sh                — Docker Compose startup + health wait
 │   ├── health_check.sh         — standalone /health check
-│   ├── update_duckdns.sh       — DuckDNS IP update for EC2
+│   ├── update_duckdns.sh       — DuckDNS IP update (redundant with a Reserved Public IP; kept for reference)
 │   └── test_arabic_tts.py      — auditions all 6 Orpheus voices
 │
 ├── tests/
@@ -778,10 +778,14 @@ Copy the HTTPS URL into `PUBLIC_BASE_URL`.
 python run.py
 ```
 
-For EC2:
+For production (Oracle Cloud — Docker behind a Caddy HTTPS reverse proxy):
 ```bash
 bash scripts/start.sh
 ```
+The container binds `127.0.0.1:8000` (Caddy forwards to it) and `docker-compose.yml`
+forces `APP_ENV=production`. The public hostname (`najda-voice.duckdns.org`) is a
+Reserved-Public-IP-backed DuckDNS name, so the Telnyx webhook URL never changes.
+Deploy sync is manual: `git pull` + `docker compose up -d --build`.
 
 ### 5. Browser Dialer (Alternative to Phone)
 
