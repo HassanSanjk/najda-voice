@@ -1,0 +1,134 @@
+emergency: poisoning
+version: "1.0"
+languages: [en, ar]
+
+# New file -- covers poisoning, previously uncovered.
+#
+# Triage branches on consciousness/breathing (same stable/critical pattern
+# as electric_shock.yaml and snake_bites.yaml) rather than on exposure
+# route (swallowed/inhaled/skin/eyes), because responsiveness is what
+# determines whether recovery position or CPR readiness applies. Exposure-
+# route differences (skin, eyes, inhalation, ingestion) are handled as
+# conditional lines within both branches instead, since a single caller
+# often can't cleanly separate "how" from "how bad" under panic, and both
+# axes matter.
+#
+# The single most important content rule here is the ground-rule-flagged
+# instinct to correct: do NOT induce vomiting. This is stated as an
+# explicit "do not" in both branches' steps, not just in general_knowledge,
+# since it's the most common wrong home-remedy reflex for poisoning.
+#
+# Both branches escalate:true. Per the ground rule, poisoning likely
+# escalates on most but maybe not all branches -- the case for NOT
+# escalating would be a known, clearly minor exposure (e.g. a small
+# amount of a mild household product) where a poison-control hotline
+# rather than emergency services is the right first call in some regions.
+# That distinction depends on substance identity and local poison-control
+# availability, which this voice agent cannot reliably assess in the
+# moment, so per the conservative-escalation ground rule this file
+# routes both branches to "call emergency services now" rather than
+# guessing which exposures are safe to just monitor.
+#
+# VERIFY: the general_knowledge answer about caustic/corrosive substances
+# (bleach, drain cleaner) intentionally avoids giving a specific "give
+# water/milk to dilute" instruction, since guidance on this varies by
+# substance and by source, and giving it wrong can cause harm (e.g.
+# vomiting a corrosive substance back up). Flagged for a human reviewer
+# with local poison-control expertise to confirm before this goes live.
+
+triage:
+  en:
+    question: "Are they awake and breathing normally, or are they unconscious or having serious trouble breathing?"
+    options:
+      conscious: "awake and breathing normally"
+      critical: "unconscious or serious trouble breathing"
+  ar:
+    question: "هل هو واعٍ ويتنفس بشكل طبيعي، أم أنه فاقد الوعي أو يعاني من صعوبة شديدة في التنفس؟"
+    options:
+      conscious: "واعٍ ويتنفس بشكل طبيعي"
+      critical: "فاقد الوعي أو صعوبة شديدة في التنفس"
+
+scenarios:
+  conscious:
+    en:
+      steps:
+        - "Do not make them vomit unless poison control or a doctor specifically tells you to."
+        - "Find out what they swallowed, touched, or breathed in, and how much, if you can."
+        - "If it was swallowed, do not give them anything to eat or drink unless a professional tells you to."
+        - "If it's on their skin, remove contaminated clothing and rinse the skin with running water for fifteen to twenty minutes."
+        - "If it's in their eyes, rinse with clean running water for fifteen to twenty minutes, holding the eyelid open."
+        - "If they inhaled gas or fumes, get them to fresh air right away without putting yourself at risk."
+        - "Keep the container, package, or plant so you can show emergency responders."
+        - "Call emergency services now and describe what happened."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
+    ar:
+      steps:
+        - "لا تجعله يتقيأ إلا إذا أخبرك مركز السموم أو طبيب بذلك تحديداً."
+        - "اعرف ماذا ابتلع أو لمس أو استنشق، وكم الكمية، إن استطعت."
+        - "إذا كان قد ابتلعه، لا تعطه أي طعام أو شراب إلا إذا أخبرك مختص بذلك."
+        - "إذا كان على جلده، انزع الملابس الملوثة واغسل الجلد بماء جارٍ لمدة خمس عشرة إلى عشرين دقيقة."
+        - "إذا كان في عينيه، اغسلها بماء نظيف جارٍ لمدة خمس عشرة إلى عشرين دقيقة مع إبقاء الجفن مفتوحاً."
+        - "إذا استنشق غازاً أو أبخرة، انقله إلى هواء نقي فوراً دون تعريض نفسك للخطر."
+        - "احتفظ بالعلبة أو العبوة أو النبتة لتريها لفريق الإسعاف."
+        - "اتصل بالإسعاف الآن وصف ما حدث."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
+
+  critical:
+    en:
+      steps:
+        - "Check if they are breathing."
+        - "If they are breathing but not responding, turn them onto their side into the recovery position."
+        - "If they are not breathing, begin CPR right away."
+        - "Do not try to make them vomit."
+        - "Do not give them anything by mouth."
+        - "If poison is on their skin or in their eyes, rinse it while continuing to watch their breathing."
+        - "Keep the container, package, or substance to show responders."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
+    ar:
+      steps:
+        - "تحقق مما إذا كان يتنفس."
+        - "إذا كان يتنفس لكنه لا يستجيب، اقلبه على جانبه في وضعية الإفاقة."
+        - "إذا لم يكن يتنفس، ابدأ الإنعاش القلبي فوراً."
+        - "لا تحاول جعله يتقيأ."
+        - "لا تعطه أي شيء عن طريق الفم."
+        - "إذا كان السم على جلده أو في عينيه، اغسله مع الاستمرار في مراقبة تنفسه."
+        - "احتفظ بالعلبة أو العبوة أو المادة لتريها لفريق الإسعاف."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
+
+general_knowledge:
+  en:
+    - q: "Should I make them throw up?"
+      a: "No, do not induce vomiting in most cases. For some substances, especially caustic ones, vomiting can cause more harm on the way back up. Only do this if poison control or a doctor tells you to, specifically."
+    - q: "What if it's a caustic chemical like bleach or drain cleaner?"
+      a: "Do not make them vomit, and do not give anything to try to neutralize it yourself. Call emergency services or poison control right away and follow their exact instructions for that specific chemical."
+    - q: "What if I don't know what they took?"
+      a: "Still call emergency services or poison control immediately. Describe the symptoms, and look nearby for pill bottles, packaging, or containers that might tell you what it was."
+    - q: "Can I give them milk or water to dilute it?"
+      a: "Only if poison control or a doctor tells you to for that specific substance. It is not safe in every case, so don't do this on your own without checking first."
+    - q: "What if they inhaled carbon monoxide or gas?"
+      a: "Get them to fresh air immediately, and open windows and doors if it's safe to do so. Do not go into a gas-filled space yourself if it would put you at risk. Call emergency services."
+  ar:
+    - q: "هل أجعله يتقيأ؟"
+      a: "لا، لا تحاول جعله يتقيأ في معظم الحالات. بالنسبة لبعض المواد، خصوصاً الكاوية، قد يسبب التقيؤ ضرراً إضافياً عند رجوعها للأعلى. افعل ذلك فقط إذا أخبرك مركز السموم أو طبيب بذلك تحديداً."
+    - q: "ماذا لو كانت مادة كاوية مثل المبيّض أو منظف المجاري؟"
+      a: "لا تجعله يتقيأ، ولا تعطه أي شيء لمحاولة تعديل المادة بنفسك. اتصل بالإسعاف أو مركز السموم فوراً واتبع تعليماتهم الدقيقة لتلك المادة تحديداً."
+    - q: "ماذا لو كنت لا أعرف ماذا تناول؟"
+      a: "اتصل بالإسعاف أو مركز السموم فوراً على أي حال. صف الأعراض، وابحث بالقرب منه عن علب أدوية أو عبوات قد تدلك على ما تناوله."
+    - q: "هل أعطيه حليباً أو ماءً لتخفيف المادة؟"
+      a: "فقط إذا أخبرك مركز السموم أو طبيب بذلك لتلك المادة تحديداً. ليس آمناً في كل الحالات، فلا تفعل ذلك بنفسك دون التأكد أولاً."
+    - q: "ماذا لو استنشق أول أكسيد الكربون أو غازاً؟"
+      a: "انقله إلى هواء نقي فوراً، وافتح النوافذ والأبواب إذا كان ذلك آمناً. لا تدخل مكاناً مليئاً بالغاز إذا كان ذلك سيعرضك للخطر. اتصل بالإسعاف."
+
+keywords:
+  en: ["poison", "poisoned", "poisoning", "swallowed something", "swallowed pills", "overdose", "overdosed", "ate something toxic", "drank something", "ingested", "took too many pills", "chemical exposure", "inhaled gas", "inhaled fumes", "carbon monoxide", "gas leak", "toxic", "drank bleach", "ate cleaning product", "took poison", "accidental ingestion"]
+  ar: ["تسمم", "مسموم", "مسمومة", "تسممت", "ابتلع سم", "ابتلعت", "بلع مادة", "بلع دواء", "جرعة زايدة", "جرعة زائدة", "أخذ حبوب كثيرة", "شرب مادة كيميائية", "استنشق غاز", "غاز سام", "تسرب غاز", "أكل شيء سام", "شرب كلور", "شرب مبيض"]

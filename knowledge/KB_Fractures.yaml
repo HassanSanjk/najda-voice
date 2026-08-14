@@ -1,5 +1,5 @@
 emergency: fractures
-version: "1.0"
+version: "1.1"
 languages: [en, ar]
 
 # Spinal/neck injury caution is NOT present anywhere in the source
@@ -18,6 +18,28 @@ languages: [en, ar]
 # The open-fracture bleeding step is worded differently from
 # bleeding.yaml on purpose: press AROUND the wound, not directly on it,
 # since direct pressure on a protruding bone fragment is harmful.
+#
+# --- v1.1 audit note -- REGRESSION FIX ---
+# This is the file that caused the two confirmed live failures:
+#   1. "my hand is broke" -- only "broken" was listed, not "broke".
+#      FIXED: added broke/break/breaking/breaks alongside broken.
+#   2. "يدي مكسورة" -- keyword list only had the bare root كسر. Word-
+#      boundary matching correctly refused to match كسر embedded inside
+#      the templatic passive-participle مكسورة, so the file never
+#      matched at all. FIXED: added the full derivational set for the
+#      ك-س-ر root (مكسور/مكسورة, انكسر/انكسرت, يكسر/تكسر) instead of
+#      relying on the bare root to catch its own derivatives.
+# Both failure strings were re-tested against the new keyword list below
+# and now match ("broke" -> en list; "مكسورة" -> ar list). Also added
+# sprain/التواء terms, since the file's own general_knowledge Q&A already
+# tells callers to treat a suspected sprain the same as a fracture -- the
+# keyword list should route those callers here too, not just "fracture"
+# language.
+# Separately: the real transcript "اظن اني كسلس ساقي" is STT-garbled
+# enough that no clean root/derivative reliably appears in it. Flagging
+# this as a keyword-matching limit, not something a keyword list can fix
+# -- would need router-level fuzzy matching or a clarifying re-prompt on
+# low-confidence transcripts. Out of scope for this file.
 
 triage:
   en:
@@ -41,6 +63,8 @@ scenarios:
         - "Wrap ice in a cloth and place it on the area."
         - "Raise the limb above the heart if it does not cause pain."
         - "Get them to a doctor or hospital for an X-ray."
+      escalate: false
+      escalation_phrase: ""
       follow_up: "If the limb turns blue, numb, or feels very cold, call emergency services now."
     ar:
       steps:
@@ -50,6 +74,8 @@ scenarios:
         - "لف الثلج بقماش وضعه على المنطقة."
         - "ارفع الطرف فوق مستوى القلب إذا لم يسبب ذلك ألماً."
         - "خذه إلى طبيب أو مستشفى لعمل أشعة."
+      escalate: false
+      escalation_phrase: ""
       follow_up: "إذا أصبح الطرف أزرق أو فقد الإحساس أو أصبح بارداً جداً، اتصل بالإسعاف فوراً."
 
   open:
@@ -64,6 +90,7 @@ scenarios:
         - "Call emergency services now. Do not stop what you are doing."
       escalate: true
       escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
     ar:
       steps:
         - "إذا احتمل كسر الرقبة أو الظهر، لا تحرك الشخص."
@@ -75,6 +102,7 @@ scenarios:
         - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
       escalate: true
       escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
 
 general_knowledge:
   en:
@@ -95,3 +123,7 @@ general_knowledge:
       a: "إذا كان هناك تشوه واضح، أو لا يستطيع تحريكه، أو سمعت صوت احتكاك، تعامل معه كأنه كسر في كل الأحوال. الإسعافات الأولية نفسها."
     - q: "ماذا لو كان العظم بارزاً ولا أستطيع إيقاف النزيف؟"
       a: "استمر بالضغط برفق حول الجرح، وليس على العظم نفسه، واتصل بالإسعاف الآن إذا لم تكن قد فعلت ذلك."
+
+keywords:
+  en: ["broken", "broke", "break", "breaking", "breaks", "fracture", "fractured", "fractures", "snapped", "snap", "bone", "bone sticking out", "deformed", "cant move my arm", "can't move my arm", "cant move my leg", "can't move my leg", "sprain", "sprained", "twisted my ankle", "hurt my leg", "hurt my arm"]
+  ar: ["كسر", "كسرت", "كسره", "كسرها", "مكسور", "مكسورة", "انكسر", "انكسرت", "يكسر", "تكسر", "عظم", "عظم بارز", "التواء", "ملتوي", "لوى رجله", "لويت", "اصابة في الرجل", "اصابة في اليد", "ساقي مكسورة", "يدي مكسورة", "رجلي مكسورة"]

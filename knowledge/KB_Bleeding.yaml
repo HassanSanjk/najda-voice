@@ -1,11 +1,22 @@
 emergency: bleeding
-version: "1.0"
+version: "1.1"
 languages: [en, ar]
 
 # Tourniquet application intentionally excluded from the default severe-branch
 # steps -- too complex to instruct verbally under panic, and pressure +
 # elevation covers most cases. Answered as a fallback in general_knowledge
 # if the caller asks directly.
+#
+# --- v1.1 audit note ---
+# Added explicit keywords: field. Included both clinical terms (hemorrhage,
+# laceration) and how callers actually describe it in a panic ("so much
+# blood", "cut myself"), plus Arabic verb-form derivatives of نزف/جرح, not
+# just the bare roots. Also added missing escalate:false / escalation_phrase:""
+# to the "minor" branch and follow_up:null to "severe" so both branches are
+# schema-complete rather than relying on field omission.
+# Content spot-check: pressure/elevation/leave-embedded-object-in-place,
+# tourniquet-as-last-resort, nosebleed lean-forward, and shock signs all
+# match Red Cross first-aid guidance. No medical corrections needed.
 
 triage:
   en:
@@ -27,6 +38,8 @@ scenarios:
         - "Press a clean cloth firmly on the wound."
         - "Hold the pressure for ten minutes without stopping."
         - "Cover the wound with a bandage once bleeding stops."
+      escalate: false
+      escalation_phrase: ""
       follow_up: "Is the bleeding slowing down or stopped?"
     ar:
       steps:
@@ -34,6 +47,8 @@ scenarios:
         - "اضغط بقماش نظيف بقوة على الجرح."
         - "استمر بالضغط لمدة عشر دقائق بدون توقف."
         - "غطِّ الجرح بضمادة بعد توقف النزيف."
+      escalate: false
+      escalation_phrase: ""
       follow_up: "هل النزيف يتباطأ أو توقف؟"
 
   severe:
@@ -46,6 +61,7 @@ scenarios:
         - "Call emergency services now. Do not stop what you are doing."
       escalate: true
       escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
     ar:
       steps:
         - "اضغط بقوة على الجرح بكلتا يديك الآن."
@@ -55,6 +71,7 @@ scenarios:
         - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
       escalate: true
       escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
 
 general_knowledge:
   en:
@@ -75,3 +92,7 @@ general_knowledge:
       a: "الصدمة تحدث عندما يفقد الجسم الكثير من الدم. لاحظ شحوب الجلد وبرودته، ونبضاً سريعاً وضعيفاً، وارتباكاً. أبقِ الشخص مستلقياً ودافئاً."
     - q: "كيف أمنع الجرح من الالتهاب؟"
       a: "بعد توقف النزيف، نظّف الجرح برفق بالماء النظيف. غطِّه بضمادة نظيفة. راقب الاحمرار أو التورم أو السخونة خلال اليوم التالي."
+
+keywords:
+  en: ["bleeding", "bleed", "bleeds", "blood", "bloody", "cut", "cuts", "gash", "wound", "wounded", "hemorrhage", "hemorrhaging", "stabbed", "stab", "laceration", "nosebleed", "nose bleed", "bleeding a lot", "so much blood", "deep cut", "gushing", "cut myself", "cut my hand", "cut my arm", "cut my leg", "won't stop bleeding"]
+  ar: ["نزيف", "ينزف", "نزف", "نزفت", "دم", "دماء", "جرح", "جروح", "مجروح", "مجروحة", "انجرح", "انجرحت", "قطع", "تقطع", "نزيف الأنف", "دمي ما يوقف", "فيه دم كثير", "قص إصبعه", "جرح عميق", "ينزف بشدة", "طاح الدم"]

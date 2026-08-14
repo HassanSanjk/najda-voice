@@ -1,0 +1,125 @@
+emergency: seizures
+version: "1.0"
+languages: [en, ar]
+
+# New file -- covers seizures, previously uncovered.
+#
+# Triage branches on known-epilepsy-and-brief vs first-time-or-prolonged,
+# because per Red Cross/AHA guidance those are exactly the factors that
+# determine whether emergency services are needed: a known seizure
+# disorder with a seizure under five minutes that resolves on its own
+# usually does not need an ambulance, while a first-ever seizure, one
+# lasting over five minutes, or repeat seizures without regaining
+# consciousness between them, does.
+#
+# The three core safety rules from the ground rules -- never restrain,
+# never put anything in the mouth, clear the area / cushion the head,
+# time it, recovery position after -- are duplicated in full in BOTH
+# branches rather than only stated once, the same pattern used for
+# rescuer-safety and spinal-precaution lines elsewhere in this project.
+# These are the steps most likely to be overridden by bystander instinct
+# (holding someone down, forcing a spoon/finger between their teeth), so
+# they're stated as explicit "do not" lines rather than assumed.
+#
+# escalate:false on the known/brief branch, escalate:true on the other --
+# per the ground rule that seizures likely escalate on most but not
+# necessarily all branches. The known/brief branch still carries a strong
+# follow_up that converts to escalation the moment duration or repetition
+# criteria are met, keeping the overall bias conservative.
+
+triage:
+  en:
+    question: "Do they have a known seizure history and has this lasted less than five minutes, or is this their first seizure or has it gone on longer?"
+    options:
+      known_brief: "known history, under five minutes"
+      first_or_prolonged: "first seizure, or longer than five minutes"
+  ar:
+    question: "هل لديه تاريخ معروف بالتشنجات وهل استمرت هذه النوبة أقل من خمس دقائق، أم أنها نوبته الأولى أو استمرت أطول؟"
+    options:
+      known_brief: "تاريخ معروف، أقل من خمس دقائق"
+      first_or_prolonged: "نوبة أولى، أو أطول من خمس دقائق"
+
+scenarios:
+  known_brief:
+    en:
+      steps:
+        - "Stay with them and start timing the seizure now."
+        - "Clear the area of anything hard or sharp nearby."
+        - "Do not hold them down or try to stop their movements."
+        - "Do not put anything in their mouth, not even your fingers."
+        - "Cushion their head with something soft, like a folded jacket."
+        - "Loosen anything tight around their neck."
+        - "Once the shaking stops, turn them onto their side into the recovery position."
+        - "Stay with them until they are fully alert, this can take several minutes."
+      escalate: false
+      escalation_phrase: ""
+      follow_up: "If the seizure passes five minutes, another one starts before they wake up, or they are injured, call emergency services now."
+    ar:
+      steps:
+        - "ابقَ معه وابدأ حساب وقت النوبة الآن."
+        - "أزل أي أشياء صلبة أو حادة قريبة منه."
+        - "لا تمسكه أو تحاول إيقاف حركاته."
+        - "لا تضع أي شيء في فمه، ولا حتى أصابعك."
+        - "أسند رأسه بشيء ناعم، مثل سترة مطوية."
+        - "فك أي شيء ضيق حول رقبته."
+        - "بمجرد توقف الاهتزاز، اقلبه على جانبه في وضعية الإفاقة."
+        - "ابقَ معه حتى يستيقظ تماماً، قد يستغرق ذلك عدة دقائق."
+      escalate: false
+      escalation_phrase: ""
+      follow_up: "إذا تجاوزت النوبة خمس دقائق، أو بدأت نوبة أخرى قبل أن يستيقظ، أو أُصيب، اتصل بالإسعاف فوراً."
+
+  first_or_prolonged:
+    en:
+      steps:
+        - "Note what time the seizure started, or that it has already passed five minutes."
+        - "Clear the area of anything hard or sharp nearby."
+        - "Do not hold them down or try to stop their movements."
+        - "Do not put anything in their mouth, not even your fingers."
+        - "Cushion their head with something soft, like a folded jacket."
+        - "Loosen anything tight around their neck."
+        - "Once the shaking stops, turn them onto their side into the recovery position and check their breathing."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
+    ar:
+      steps:
+        - "لاحظ الوقت الذي بدأت فيه النوبة، أو أنها تجاوزت خمس دقائق بالفعل."
+        - "أزل أي أشياء صلبة أو حادة قريبة منه."
+        - "لا تمسكه أو تحاول إيقاف حركاته."
+        - "لا تضع أي شيء في فمه، ولا حتى أصابعك."
+        - "أسند رأسه بشيء ناعم، مثل سترة مطوية."
+        - "فك أي شيء ضيق حول رقبته."
+        - "بمجرد توقف الاهتزاز، اقلبه على جانبه في وضعية الإفاقة وتحقق من تنفسه."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
+
+general_knowledge:
+  en:
+    - q: "Should I hold them down to stop the shaking?"
+      a: "No, never restrain someone having a seizure, you can't stop it and holding them down can injure them. Just clear the area around them so they don't hit anything."
+    - q: "Should I put something in their mouth so they don't bite their tongue?"
+      a: "No, never put anything in their mouth. This can chip teeth, injure their jaw, or block their airway. Biting the tongue is rarely serious."
+    - q: "What if they stop breathing during the seizure?"
+      a: "Short pauses in breathing are common during a seizure and usually not dangerous. If they don't start breathing again once the shaking stops, begin CPR and call emergency services."
+    - q: "How do I put someone in the recovery position?"
+      a: "Turn them onto their side, tilt their head back slightly to keep the airway open, and bend their top knee forward to stop them rolling onto their front."
+    - q: "What if another seizure starts right after this one ends?"
+      a: "That is a reason to call emergency services now, even if each individual seizure seems short."
+  ar:
+    - q: "هل أمسكه لإيقاف الاهتزاز؟"
+      a: "لا، لا تمسك أبداً شخصاً يتشنج، لا يمكنك إيقاف النوبة والإمساك به قد يؤذيه. فقط أزل الأشياء القريبة منه حتى لا يصطدم بها."
+    - q: "هل أضع شيئاً في فمه حتى لا يعض لسانه؟"
+      a: "لا، لا تضع أي شيء في فمه أبداً. قد يكسر أسنانه أو يؤذي فكه أو يسد مجرى هواءه. عض اللسان نادراً ما يكون خطيراً."
+    - q: "ماذا لو توقف عن التنفس أثناء النوبة؟"
+      a: "توقف التنفس لفترات قصيرة أمر شائع أثناء النوبة وعادة ليس خطيراً. إذا لم يعد يتنفس بعد توقف الاهتزاز، ابدأ الإنعاش القلبي واتصل بالإسعاف."
+    - q: "كيف أضع شخصاً في وضعية الإفاقة؟"
+      a: "اقلبه على جانبه، أمِل رأسه قليلاً للخلف لإبقاء مجرى الهواء مفتوحاً، واثنِ ركبته العلوية للأمام لمنعه من الانقلاب على بطنه."
+    - q: "ماذا لو بدأت نوبة أخرى فور انتهاء هذه؟"
+      a: "هذا سبب للاتصال بالإسعاف الآن، حتى لو بدت كل نوبة على حدة قصيرة."
+
+keywords:
+  en: ["seizure", "seizures", "seizing", "convulsion", "convulsions", "convulsing", "fit", "having a fit", "epileptic", "epilepsy", "shaking uncontrollably", "jerking", "twitching all over", "collapsed and shaking", "foaming at the mouth"]
+  ar: ["نوبة صرع", "تشنج", "تشنجات", "يتشنج", "تشنجت", "صرع", "نوبة تشنجية", "يرتجف بشكل غريب", "يهتز", "رجفة", "رعشة قوية", "فقد وعيه ويهتز", "زبد من فمه", "يتخبط"]

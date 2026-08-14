@@ -1,5 +1,5 @@
 emergency: allergic_reactions
-version: "1.0"
+version: "1.1"
 languages: [en, ar]
 
 # Raw source used a 3-tier mild/moderate/severe split but described
@@ -11,6 +11,22 @@ languages: [en, ar]
 # Epinephrine-injector step is phrased as a conditional imperative rather
 # than a second triage question, to keep the one-question cap while still
 # handling the have-injector / no-injector split.
+#
+# --- v1.1 audit note ---
+# Added the explicit keywords: field (file previously had none and was
+# relying on the Python-side fallback dict -- closing that gap per the
+# project-wide keyword audit). Expanded past bare headwords ("allergy",
+# "rash") to cover inflected and colloquial forms a real caller would
+# actually say, same root cause as the fractures.yaml "broke"/"مكسورة"
+# false-negative bugs. No changes made to steps or general_knowledge
+# content; spot-checked both against Red Cross/AHA anaphylaxis guidance
+# and found them consistent with recognized protocol.
+# VERIFY: "lay them flat and raise their legs if they can breathe" is
+# standard Red Cross first-aid phrasing and is left as-is, but some newer
+# clinical guidance is more cautious about any sudden postural change
+# during anaphylaxis (risk if they stand or are moved upright too fast).
+# Flagging for human reviewer awareness -- not silently changing the
+# spoken script.
 
 triage:
   en:
@@ -31,12 +47,16 @@ scenarios:
         - "Take an antihistamine tablet if they have one."
         - "Watch closely for swelling in the face or throat."
         - "Watch for any trouble breathing or swallowing."
+      escalate: false
+      escalation_phrase: ""
       follow_up: "If breathing becomes hard or the throat swells, call emergency services now."
     ar:
       steps:
         - "تناول حبة مضاد للحساسية إذا كانت متوفرة."
         - "راقب أي تورم في الوجه أو الحلق."
         - "راقب أي صعوبة في التنفس أو البلع."
+      escalate: false
+      escalation_phrase: ""
       follow_up: "إذا صار التنفس صعباً أو تورم الحلق، اتصل بالإسعاف فوراً."
 
   severe:
@@ -50,6 +70,7 @@ scenarios:
         - "Call emergency services now. Do not stop what you are doing."
       escalate: true
       escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
     ar:
       steps:
         - "إذا كان معهم إبرة إبينفرين، استخدمها في فخذهم الخارجي الآن."
@@ -60,6 +81,7 @@ scenarios:
         - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
       escalate: true
       escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
 
 general_knowledge:
   en:
@@ -80,3 +102,7 @@ general_knowledge:
       a: "لا يزال يجب الذهاب إلى المستشفى. أعراض الحساسية الشديدة قد تعود حتى بعد أن تتحسن."
     - q: "ما الأشياء الشائعة التي تسبب هذا النوع من التفاعل؟"
       a: "الأسباب الشائعة تشمل بعض الأطعمة مثل الفول السوداني أو المحار، ولسعات الحشرات، وبعض الأدوية، والمطاط."
+
+keywords:
+  en: ["allergic", "allergy", "allergies", "anaphylaxis", "anaphylactic", "hives", "itching", "itchy", "itch", "rash", "swelling", "swollen", "swell", "epipen", "epi-pen", "epinephrine", "auto-injector", "hoarse voice", "throat closing", "throat swelling", "bee sting", "wasp sting", "insect sting", "peanut allergy", "shellfish allergy", "face swelling", "lips swelling", "reaction to"]
+  ar: ["حساسية", "تحسس", "تحسست", "تحسس جلدي", "حكة", "حكه", "طفح", "طفح جلدي", "انتفاخ", "تورم", "متورم", "متورمة", "تورم الوجه", "تورم الحلق", "تورم الشفايف", "إبينفرين", "ابرة الحساسية", "حساسية من الفول السوداني", "لدغة نحلة", "لدغة حشرة", "انتفخ", "انتفخت", "احمرار الجلد", "دوخة وحكة"]

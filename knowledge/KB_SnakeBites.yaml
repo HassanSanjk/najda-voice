@@ -1,5 +1,5 @@
 emergency: snake_bites
-version: "1.0"
+version: "1.1"
 languages: [en, ar]
 
 # Dropped a contradictory clause from the source: it said not to give
@@ -18,6 +18,14 @@ languages: [en, ar]
 # breathing/responsiveness, and the critical branch adds the same
 # recovery-position and CPR-trigger lines used in electric_shock.yaml,
 # reusing identical phrasing on purpose for consistency across files.
+#
+# --- v1.1 audit note ---
+# Added explicit keywords: field. No content changes -- the no-cut,
+# no-suck, no-ice, no-tourniquet, immobilize-at-or-below-heart-level
+# checklist matches current WHO/Red Cross snakebite guidance, which
+# specifically supersedes older folk-remedy advice (cutting the wound or
+# sucking out venom is now known to do more harm than good and is
+# correctly excluded here).
 
 triage:
   en:
@@ -46,6 +54,7 @@ scenarios:
         - "Call emergency services now. Do not stop what you are doing."
       escalate: true
       escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
     ar:
       steps:
         - "أبقه هادئاً وساكناً تماماً لإبطاء انتشار السم."
@@ -59,6 +68,7 @@ scenarios:
         - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
       escalate: true
       escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
 
   critical:
     en:
@@ -76,6 +86,7 @@ scenarios:
         - "Call emergency services now. Do not stop what you are doing."
       escalate: true
       escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
     ar:
       steps:
         - "أبقه هادئاً وساكناً تماماً لإبطاء انتشار السم."
@@ -91,6 +102,7 @@ scenarios:
         - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
       escalate: true
       escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
 
 general_knowledge:
   en:
@@ -111,3 +123,7 @@ general_knowledge:
       a: "لا، العاصبة تقطع تدفق الدم وتسبب ضرراً أكبر للأنسجة. إبقاء الطرف ساكناً وأخفض من القلب هو الطريقة الآمنة لإبطاء الانتشار."
     - q: "اللدغة على طفل. هل يتغير شيء؟"
       a: "الأطفال قد يتأثرون بالسم بشكل أسرع وأخطر بسبب صغر حجمهم. اتبع نفس الخطوات، لكن تعامل مع الأمر بإلحاح أكبر."
+
+keywords:
+  en: ["snake bite", "snakebite", "snake bit me", "bit by a snake", "bitten by a snake", "venomous snake", "venom", "fangs", "snake", "cobra bite", "viper bite", "bite", "bitten"]
+  ar: ["لدغة ثعبان", "لدغني ثعبان", "ثعبان", "حية", "لدغة حية", "عضة ثعبان", "سم", "مسموم", "لدغته أفعى", "أفعى", "عضني ثعبان", "لدغة أفعى", "عضة", "لدغة"]

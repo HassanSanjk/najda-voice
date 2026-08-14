@@ -1,0 +1,133 @@
+emergency: stroke
+version: "1.0"
+languages: [en, ar]
+
+# New file -- covers stroke, previously uncovered.
+#
+# Triage branches on consciousness/breathing (responsive vs unresponsive)
+# rather than on time-since-onset, because that's the split that produces
+# genuinely different physical actions (monitoring + FAST checks vs
+# recovery position / CPR readiness), matching the stable/critical pattern
+# already used in electric_shock.yaml and snake_bites.yaml.
+#
+# Time of onset still gets asked -- per the ground rule that it matters
+# medically (it determines eligibility for clot-dissolving treatment) --
+# but as a scripted step ("note the exact time symptoms started, or when
+# they were last seen normal") inside both branches rather than as the
+# single triage question, since the one-question cap is reserved for the
+# question that actually changes what the caller does next.
+#
+# FAST (Face, Arm, Speech, Time) is scripted explicitly in the responsive
+# branch per the ground rules. Both branches escalate unconditionally --
+# per the ground rule that stroke should almost always route to emergency
+# services, and because symptoms that resolve can still be a TIA
+# ("mini-stroke") warning sign of a larger stroke to come.
+#
+# Aspirin question is answered explicitly as a "no" and flagged as a
+# common wrong instinct (people conflate stroke with heart attack, where
+# aspirin IS often advised) -- same pattern as the poisoning file's
+# vomiting caution.
+#
+# VERIFY: general_knowledge extends past classic FAST into some BE-FAST
+# symptoms (sudden dizziness, loss of balance, sudden vision problems)
+# and the keyword list includes generic complaints like "dizzy" and
+# "blurry vision" pulled directly from real caller transcripts. These are
+# real stroke symptoms, but they're also common to many far less serious
+# conditions, so this keyword choice trades some false-positive routing
+# risk for not missing an atypical stroke presentation. A human reviewer
+# should confirm this is the trade-off the project wants, since a low
+# specificity keyword here could make the stroke KB fire often for
+# unrelated dizziness/headache calls.
+
+triage:
+  en:
+    question: "Are they conscious and breathing normally, or not?"
+    options:
+      responsive: "conscious and breathing normally"
+      unresponsive: "unconscious or not breathing normally"
+  ar:
+    question: "هل هو واعٍ ويتنفس بشكل طبيعي، أم لا؟"
+    options:
+      responsive: "واعٍ ويتنفس بشكل طبيعي"
+      unresponsive: "غير واعٍ أو لا يتنفس بشكل طبيعي"
+
+scenarios:
+  responsive:
+    en:
+      steps:
+        - "Ask them to smile. Check if one side of the face droops."
+        - "Ask them to raise both arms. Check if one arm drifts down."
+        - "Ask them to repeat a simple sentence. Listen for slurred or strange speech."
+        - "Note the exact time the symptoms started, or the last time they were known normal."
+        - "Do not give them anything to eat, drink, or any medication, including aspirin."
+        - "Keep them calm, sitting or lying down with their head slightly raised."
+        - "If one side is weak, support them so they don't fall."
+        - "Call emergency services now, even if the symptoms start to improve."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
+    ar:
+      steps:
+        - "اطلب منه أن يبتسم. تحقق إذا كان جانب من الوجه مترهلاً."
+        - "اطلب منه رفع كلتا الذراعين. تحقق إذا كانت إحداهما تنزل للأسفل."
+        - "اطلب منه تكرار جملة بسيطة. استمع لأي تعثر أو غرابة في الكلام."
+        - "لاحظ الوقت بالضبط الذي بدأت فيه الأعراض، أو آخر مرة كان فيها طبيعياً."
+        - "لا تعطه أي طعام أو شراب أو دواء، بما في ذلك الأسبرين."
+        - "أبقه هادئاً، جالساً أو مستلقياً مع رفع رأسه قليلاً."
+        - "إذا كان أحد الجانبين ضعيفاً، ادعمه حتى لا يسقط."
+        - "اتصل بالإسعاف الآن، حتى لو بدأت الأعراض تتحسن."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
+
+  unresponsive:
+    en:
+      steps:
+        - "Note the exact time you found them like this, or when they were last seen normal."
+        - "Check if they are breathing normally."
+        - "If they are breathing but not responding, turn them onto their side into the recovery position."
+        - "If they are not breathing at all, begin CPR right away."
+        - "Do not give them anything by mouth."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
+    ar:
+      steps:
+        - "لاحظ الوقت بالضبط الذي وجدته فيه هكذا، أو آخر مرة كان فيها طبيعياً."
+        - "تحقق مما إذا كان يتنفس بشكل طبيعي."
+        - "إذا كان يتنفس لكنه لا يستجيب، اقلبه على جانبه في وضعية الإفاقة."
+        - "إذا لم يكن يتنفس إطلاقاً، ابدأ الإنعاش القلبي فوراً."
+        - "لا تعطه أي شيء عن طريق الفم."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
+
+general_knowledge:
+  en:
+    - q: "Should I give them aspirin like I would for a heart attack?"
+      a: "No. Unlike a heart attack, do not give aspirin for a suspected stroke. Some strokes are caused by bleeding in the brain, and aspirin can make that kind worse. Let paramedics decide."
+    - q: "What if the symptoms went away after a few minutes?"
+      a: "Still call emergency services. This can be a mini-stroke, a warning sign that a bigger stroke may follow soon, and it needs the same urgent evaluation."
+    - q: "Is it safe to let them sleep or rest it off?"
+      a: "No, keep them awake and monitored, and get emergency help now. Time lost delays treatment that works best in the first few hours."
+    - q: "Are there other signs of stroke besides the face, arm, and speech?"
+      a: "Yes, watch for sudden dizziness or loss of balance, sudden trouble seeing in one or both eyes, or a sudden severe headache with no known cause. Any of these alongside face, arm, or speech changes means call emergency services now."
+    - q: "Why does the exact time matter so much?"
+      a: "Some stroke treatments only work within the first few hours after symptoms start. Telling paramedics the exact time, or the last time the person seemed normal, helps doctors decide what treatment is possible."
+  ar:
+    - q: "هل أعطيه أسبرين كما أفعل في حالة النوبة القلبية؟"
+      a: "لا. على عكس النوبة القلبية، لا تعطِ الأسبرين في حالة اشتباه السكتة الدماغية. بعض السكتات ناتجة عن نزيف في الدماغ، والأسبرين قد يزيد ذلك سوءاً. اترك القرار لفريق الإسعاف."
+    - q: "ماذا لو زالت الأعراض بعد بضع دقائق؟"
+      a: "اتصل بالإسعاف رغم ذلك. قد تكون هذه نوبة عابرة، وهي علامة تحذيرية على احتمال حدوث سكتة أكبر قريباً، وتحتاج نفس التقييم العاجل."
+    - q: "هل من الآمن تركه ينام أو يرتاح؟"
+      a: "لا، أبقه مستيقظاً وراقبه، واطلب المساعدة الطارئة الآن. الوقت الضائع يؤخر علاجاً يعمل بشكل أفضل في الساعات الأولى."
+    - q: "هل هناك علامات أخرى للسكتة الدماغية غير الوجه والذراع والكلام؟"
+      a: "نعم، راقب الدوخة المفاجئة أو فقدان التوازن، أو صعوبة مفاجئة في الرؤية بعين واحدة أو كلتيهما، أو صداعاً شديداً مفاجئاً بلا سبب معروف. أي من هذه مع تغيرات الوجه أو الذراع أو الكلام يعني الاتصال بالإسعاف فوراً."
+    - q: "لماذا الوقت بالضبط مهم جداً؟"
+      a: "بعض علاجات السكتة الدماغية تعمل فقط خلال الساعات الأولى من بدء الأعراض. إخبار فريق الإسعاف بالوقت بالضبط، أو آخر مرة بدا فيها الشخص طبيعياً، يساعد الأطباء على تحديد العلاج الممكن."
+
+keywords:
+  en: ["stroke", "face drooping", "drooping face", "facial droop", "arm weakness", "slurred speech", "slurring", "cant speak", "can't speak", "one side weak", "numbness on one side", "cant move one side", "can't move one side", "sudden confusion", "mini stroke", "tia", "sudden dizziness", "dizzy", "blurry vision", "vision problems", "cant see well", "can't see well", "sudden headache", "losing balance", "wobbly", "face is crooked"]
+  ar: ["سكتة دماغية", "جلطة", "جلطة دماغية", "جلطه", "وجهه مايل", "وجه مائل", "وجهه معوج", "لسانه ثقيل", "كلامه غير مفهوم", "ذراعه ضعيف", "نصف جسمه ضعيف", "ما يقدر يتكلم", "فقد النطق", "تنميل نصف الجسم", "دايخ فجأة", "دوخة مفاجئة", "رؤية ضبابية", "ما يشوف زين", "صداع مفاجئ", "فقدان التوازن", "وجهه مايل لجهة"]

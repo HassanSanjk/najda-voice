@@ -1,5 +1,5 @@
 emergency: choking
-version: "1.0"
+version: "1.1"
 languages: [en, ar]
 
 # DEVIATION FROM STANDARD SCHEMA: triage question is age (infant vs
@@ -12,6 +12,15 @@ languages: [en, ar]
 # Mild-vs-severe (can they still cough/speak vs fully blocked) is still
 # handled, but as a conditional first line inside each age branch rather
 # than a second triage question, to keep the one-question cap.
+#
+# --- v1.1 audit note ---
+# Added explicit keywords: field, including colloquial "something stuck in
+# throat" / "علق شي بحلقه" phrasing real callers use instead of the
+# clinical word "choking"/"اختناق" itself. Both branches already had
+# escalate:true and escalation_phrase set correctly; no schema gaps found.
+# Content spot-check: adult/child abdominal thrusts and infant back-blow +
+# chest-thrust cycle both match AHA/Red Cross technique, including the
+# CPR handoff with mouth check on airway re-open. No corrections needed.
 
 triage:
   en:
@@ -39,6 +48,7 @@ scenarios:
         - "Call emergency services now. Do not stop what you are doing."
       escalate: true
       escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
     ar:
       steps:
         - "إذا كان يستطيع السعال أو الكلام أو التنفس، قل له أن يستمر بالسعال."
@@ -51,6 +61,7 @@ scenarios:
         - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
       escalate: true
       escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
 
   infant:
     en:
@@ -66,6 +77,7 @@ scenarios:
         - "Call emergency services now. Do not stop what you are doing."
       escalate: true
       escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
     ar:
       steps:
         - "إذا كان الرضيع يستطيع السعال أو البكاء، دعه يستمر."
@@ -79,6 +91,7 @@ scenarios:
         - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
       escalate: true
       escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
 
 general_knowledge:
   en:
@@ -99,3 +112,7 @@ general_knowledge:
       a: "راقبه لأي سعال مستمر أو صعوبة في التنفس أو ألم في الصدر. حتى لو بدا بخير، من الأفضل أن يفحصه طبيب."
     - q: "هل الطعام فقط يسبب الاختناق؟"
       a: "لا، الأشياء الصغيرة مثل الألعاب والعملات المعدنية وقطع البالونات تسبب الاختناق أيضاً، خصوصاً عند الأطفال."
+
+keywords:
+  en: ["choking", "choke", "choked", "chokes", "something stuck in throat", "food stuck", "cant breathe", "can't breathe", "cannot breathe", "airway", "throat", "heimlich", "gagging", "gagged", "swallowed wrong", "cant talk", "can't talk", "cant cough", "turning blue", "clutching throat", "object stuck"]
+  ar: ["اختناق", "شرقة", "يختنق", "اختنق", "اختنقت", "غصة", "غص", "غصة في حلقه", "انسداد", "مسدود حلقه", "ما يقدر يتنفس", "علق شي بحلقه", "شي علق بحلقه", "ما يقدر يسعل", "ازرق وجهه", "دخل بلعومه"]

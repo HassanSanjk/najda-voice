@@ -1,0 +1,124 @@
+emergency: trauma
+version: "1.0"
+languages: [en, ar]
+
+# New file -- covers trauma/road accidents, previously uncovered.
+#
+# Triage deliberately does NOT use a severity split. The single most
+# important trauma decision is a safety/logistics one, not a clinical
+# one: is the person in immediate danger (fire, oncoming traffic, an
+# unstable structure) that forces you to move them despite possible
+# spinal injury, or is the scene safe enough that the default "do not
+# move them" rule can simply apply? That's the branch that produces
+# genuinely different physical actions, per the project's own ground
+# rule that spinal precaution is usually the first instruction unless
+# immediate danger requires evacuation.
+#
+# Both branches escalate -- a caller reaching this file describes a
+# traffic accident or major fall/trauma, which always warrants professional
+# evaluation even if the person seems okay, per the conservative-escalation
+# rule.
+#
+# Sourced from Red Cross/WHO trauma first-aid guidance: don't move a
+# person with suspected spinal injury unless there's immediate danger;
+# if you must move them, keep head/neck/back aligned and move as a
+# single unit; if breathing stops, airway/breathing takes priority over
+# spinal precaution (this matches AHA guidance that CPR is never withheld
+# for suspected spinal injury -- open the airway and start CPR if needed).
+#
+# VERIFY: the "safe" branch's line about opening the airway with suspected
+# spinal injury if they stop breathing is standard AHA guidance (breathing
+# beats spinal precaution), but the exact phrasing of how a lay bystander
+# should tilt the head is simplified here rather than describing a jaw-
+# thrust technique, since jaw-thrust requires training most callers won't
+# have. Flagging for human review of the phrasing, not the underlying
+# priority order.
+
+triage:
+  en:
+    question: "Is the person in immediate danger right now, like fire or oncoming traffic, or is the scene safe?"
+    options:
+      danger: "in immediate danger"
+      safe: "scene is safe"
+  ar:
+    question: "هل الشخص في خطر مباشر الآن، مثل حريق أو سيارات قادمة، أم أن المكان آمن؟"
+    options:
+      danger: "في خطر مباشر"
+      safe: "المكان آمن"
+
+scenarios:
+  danger:
+    en:
+      steps:
+        - "Only move them because staying where they are is more dangerous, like fire or oncoming traffic."
+        - "Try to keep their head, neck, and back in a straight line as you move them."
+        - "Move them as one single unit, do not let their body twist or bend."
+        - "Once you are both somewhere safe, keep them completely still."
+        - "Check if they are breathing normally."
+        - "If they are not breathing, begin CPR right away, even with a possible spinal injury."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
+    ar:
+      steps:
+        - "لا تحركه إلا لأن البقاء في مكانه أخطر، مثل وجود حريق أو سيارات قادمة."
+        - "حاول إبقاء رأسه ورقبته وظهره في خط مستقيم أثناء تحريكه."
+        - "حركه كوحدة واحدة، لا تدع جسمه يلتوي أو ينحني."
+        - "بمجرد الوصول لمكان آمن، أبقه ساكناً تماماً."
+        - "تحقق مما إذا كان يتنفس بشكل طبيعي."
+        - "إذا لم يكن يتنفس، ابدأ الإنعاش القلبي فوراً، حتى مع احتمال إصابة العمود الفقري."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
+
+  safe:
+    en:
+      steps:
+        - "Do not move the person."
+        - "Tell them to stay still and keep their neck and back straight."
+        - "If you support their head, hold it steady with both hands exactly as you found it."
+        - "Check for visible bleeding and press gently around, not directly on, any wound without repositioning them."
+        - "Cover them with a blanket or jacket to keep them warm without moving their body."
+        - "If they stop breathing, breathing comes first: open their airway and begin CPR."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
+    ar:
+      steps:
+        - "لا تحرك الشخص."
+        - "قل له أن يبقى ساكناً ويحافظ على استقامة رقبته وظهره."
+        - "إذا كنت تسند رأسه، ثبته بكلتا يديك تماماً كما وجدته."
+        - "تحقق من وجود نزيف ظاهر واضغط برفق حول أي جرح، وليس عليه مباشرة، دون تغيير وضعيته."
+        - "غطِّه ببطانية أو سترة ليبقى دافئاً دون تحريك جسمه."
+        - "إذا توقف عن التنفس، فالتنفس له الأولوية: افتح مجرى الهواء وابدأ الإنعاش القلبي."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
+
+general_knowledge:
+  en:
+    - q: "What if they want to get up and walk it off?"
+      a: "Keep them still and insist they stay down, even if they feel okay. Adrenaline can hide a serious injury, and moving too soon can turn a manageable injury into a permanent one."
+    - q: "There's heavy traffic and I can't safely move them myself. What do I do?"
+      a: "Get bystanders to help direct traffic or use a parked vehicle as a shield, and warn oncoming drivers. Only move the person yourself if there is truly no other way to keep them safe."
+    - q: "They're bleeding a lot. What do I do without moving them?"
+      a: "Press gently around the wound, not directly on it if a bone or object is involved, without repositioning their body. Keep applying pressure until help arrives."
+    - q: "How do I check if they're breathing without moving them?"
+      a: "Look for their chest rising and falling, and listen and feel for breath near their mouth and nose, without tilting their head back unless they are not breathing at all."
+  ar:
+    - q: "ماذا لو أراد النهوض والمشي وكأن شيئاً لم يحدث؟"
+      a: "أبقه ساكناً وأصرّ على بقائه مستلقياً، حتى لو شعر أنه بخير. الأدرينالين قد يخفي إصابة خطيرة، والتحرك المبكر قد يحول إصابة بسيطة إلى إصابة دائمة."
+    - q: "الحركة المرورية كثيفة ولا أستطيع تحريكه بأمان بمفردي. ماذا أفعل؟"
+      a: "اطلب من المارة المساعدة في توجيه السيارات أو استخدام سيارة متوقفة كحاجز، ونبّه السائقين القادمين. لا تحركه بنفسك إلا إذا لم تكن هناك طريقة أخرى لضمان سلامته."
+    - q: "ينزف بشدة. ماذا أفعل دون تحريكه؟"
+      a: "اضغط برفق حول الجرح، وليس عليه مباشرة إذا كان هناك عظم أو جسم غريب، دون تغيير وضعية جسمه. استمر بالضغط حتى وصول المساعدة."
+    - q: "كيف أتحقق من تنفسه دون تحريكه؟"
+      a: "راقب صعود وهبوط صدره، واستمع واشعر بالنَفَس قرب فمه وأنفه، دون إمالة رأسه للخلف إلا إذا كان لا يتنفس إطلاقاً."
+
+keywords:
+  en: ["accident", "car accident", "crash", "crashed", "collision", "road accident", "hit by a car", "ran over", "run over", "fell", "fell down", "fall", "motorcycle accident", "traffic accident", "injured", "injury", "trauma", "hit his head", "hit her head", "unconscious after fall", "cant move his legs", "can't move his legs", "back injury", "neck injury", "spine injury", "car crash", "pinned under", "thrown from"]
+  ar: ["حادث", "حادث سيارة", "اصطدام", "اصطدم", "تصادم", "دهس", "انسحق", "وقع", "سقط", "سقطت", "وقعت", "وقع من", "سقط من", "اصابة", "إصابة", "رضوض", "حادث مروري", "حادث طرق", "لا يقدر يتحرك", "لا يستطيع الحركة", "دهسته سيارة", "طاح من فوق", "اصطدمت السيارة"]

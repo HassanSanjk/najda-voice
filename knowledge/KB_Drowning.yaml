@@ -1,0 +1,125 @@
+emergency: drowning
+version: "1.0"
+languages: [en, ar]
+
+# New file -- covers drowning, previously uncovered. Note: KB_CPR.yaml
+# already has a one-line drowning cross-reference in its own
+# general_knowledge ("give two rescue breaths first before compressions"),
+# written before this file existed. This file supersedes that as the
+# primary drowning entry point; the CPR file's line can stay as a
+# harmless cross-reference for callers who land there first.
+#
+# Triage branches on breathing status (breathing-but-distressed vs
+# not-breathing-at-all), since that's what determines whether the caller
+# needs monitoring/positioning or needs to start rescue breathing and
+# compressions immediately -- same stable/critical pattern used elsewhere.
+#
+# Per the ground rules, two things get built into BOTH branches rather
+# than gated behind triage, since they apply regardless of severity:
+#   1. Water/spinal precaution -- if a diving or shallow-water incident is
+#      possible, support the head and neck in line with the body while
+#      removing them from the water, same "duplicate the safety line in
+#      every branch" pattern used for the live-wire and spinal cautions
+#      elsewhere in this project.
+#   2. Rescue-breathing priority -- drowning's primary problem is lack of
+#      oxygen, not a heart problem first, so the not_breathing branch gives
+#      two rescue breaths before starting compressions, then continues
+#      with the standard 30:2 pattern. This deliberately breaks from
+#      compressions-first CPR sequencing and matches AHA/Red Cross
+#      drowning-specific guidance.
+#
+# Both branches escalate:true -- per the ground rule that drowning should
+# almost always route to emergency services, since complications
+# (secondary drowning / fluid in the lungs) can appear hours after a
+# person seems to have fully recovered.
+
+triage:
+  en:
+    question: "Are they breathing on their own, or not breathing at all?"
+    options:
+      breathing: "breathing, but distressed"
+      not_breathing: "not breathing at all"
+  ar:
+    question: "هل يتنفس بنفسه، أم لا يتنفس إطلاقاً؟"
+    options:
+      breathing: "يتنفس، لكنه في ضيق"
+      not_breathing: "لا يتنفس إطلاقاً"
+
+scenarios:
+  breathing:
+    en:
+      steps:
+        - "If a diving or shallow-water accident is possible, support their head and neck in line with their body as you bring them out of the water."
+        - "Get them out of the water as quickly and safely as you can without putting yourself at risk."
+        - "Lay them on their side to let water drain from their mouth."
+        - "Remove wet clothing and keep them warm."
+        - "Watch closely for coughing, trouble breathing, or blue lips, these can appear later even if they seem fine now."
+        - "Call emergency services now, even if they seem to recover."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
+    ar:
+      steps:
+        - "إذا كان حادث غطس أو مياه ضحلة محتملاً، اسند رأسه ورقبته بمحاذاة جسمه أثناء إخراجه من الماء."
+        - "أخرجه من الماء بأسرع وأأمن طريقة ممكنة دون تعريض نفسك للخطر."
+        - "ضعه على جانبه ليسمح للماء بالتصريف من فمه."
+        - "انزع ملابسه المبللة وأبقه دافئاً."
+        - "راقبه عن قرب لأي سعال أو صعوبة تنفس أو زرقة الشفاه، فقد تظهر لاحقاً حتى لو بدا بخير الآن."
+        - "اتصل بالإسعاف الآن، حتى لو بدا أنه تعافى."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
+
+  not_breathing:
+    en:
+      steps:
+        - "If a diving or shallow-water accident is possible, support their head and neck in line with their body as you bring them out of the water."
+        - "Get them out of the water immediately."
+        - "Check if they are breathing."
+        - "If not breathing, give two rescue breaths first, then begin chest compressions."
+        - "Continue with thirty compressions and two breaths, repeating without stopping."
+        - "If an AED is nearby and their chest is dry, send someone to bring it and use it."
+        - "Call emergency services now. Do not stop what you are doing."
+      escalate: true
+      escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
+    ar:
+      steps:
+        - "إذا كان حادث غطس أو مياه ضحلة محتملاً، اسند رأسه ورقبته بمحاذاة جسمه أثناء إخراجه من الماء."
+        - "أخرجه من الماء فوراً."
+        - "تحقق مما إذا كان يتنفس."
+        - "إذا لم يكن يتنفس، أعطِ نفسين اصطناعيين أولاً، ثم ابدأ الضغط على الصدر."
+        - "استمر بثلاثين ضغطة ونفسين، وكرر ذلك بدون توقف."
+        - "إذا كان جهاز الصدمات متوفراً وصدره جاف، أرسل أحداً لإحضاره واستخدامه."
+        - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      escalate: true
+      escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
+
+general_knowledge:
+  en:
+    - q: "Should I try to drain the water out of their lungs first?"
+      a: "No, don't waste time trying to force water out, for example with abdominal thrusts. Go straight to rescue breaths and compressions, that helps far more than trying to drain water first."
+    - q: "Why breaths first instead of compressions first like normal CPR?"
+      a: "In drowning, the main problem is lack of oxygen rather than a heart problem, so two rescue breaths first help get oxygen in before you start the usual compression cycle."
+    - q: "What if I'm not trained to give rescue breaths?"
+      a: "Compressions-only CPR is still much better than doing nothing. Keep doing continuous chest compressions if you can't give breaths."
+    - q: "They coughed up water and seem fine now. Do we still need a doctor?"
+      a: "Yes. Complications from water in the lungs can develop hours later even if they look completely fine now, so they still need to be checked by a doctor."
+    - q: "Is it safe for me to go into the water to reach them?"
+      a: "Only go in yourself if you are trained and it's safe. Otherwise, reach them with a pole or rope, or throw something that floats, rather than putting yourself at risk."
+  ar:
+    - q: "هل أحاول تفريغ الماء من رئتيه أولاً؟"
+      a: "لا، لا تضيّع الوقت في محاولة إخراج الماء بالقوة، مثل الضغط على البطن. اذهب مباشرة إلى التنفس الاصطناعي والضغط على الصدر، فهذا يساعد أكثر بكثير من محاولة تصريف الماء أولاً."
+    - q: "لماذا نبدأ بالتنفس بدلاً من الضغط كما في الإنعاش القلبي العادي؟"
+      a: "في حالة الغرق، المشكلة الأساسية هي نقص الأكسجين وليست مشكلة في القلب، لذا فإن نفسين اصطناعيين أولاً يساعدان على إدخال الأكسجين قبل بدء دورة الضغط المعتادة."
+    - q: "ماذا لو لم أكن مدرباً على إعطاء التنفس الاصطناعي؟"
+      a: "الضغط المستمر على الصدر وحده أفضل بكثير من عدم فعل شيء. استمر بالضغط المتواصل إذا لم تستطع إعطاء أنفاس."
+    - q: "لفظ ماءً بالسعال ويبدو بخير الآن. هل ما زلنا بحاجة لطبيب؟"
+      a: "نعم. مضاعفات وجود ماء في الرئتين قد تظهر بعد ساعات حتى لو بدا بخير تماماً الآن، لذا لا يزال يحتاج لفحص طبيب."
+    - q: "هل من الآمن أن أدخل الماء للوصول إليه؟"
+      a: "ادخل بنفسك فقط إذا كنت مدرباً وكان ذلك آمناً. وإلا، حاول الوصول إليه بعصا أو حبل، أو ارمِ له شيئاً يطفو، بدلاً من تعريض نفسك للخطر."
+
+keywords:
+  en: ["drowning", "drowned", "drown", "almost drowned", "near drowning", "went underwater", "swallowed water", "stopped breathing in the pool", "pulled from the water", "pulled out of the pool", "cant swim", "can't swim", "went under", "submerged", "choking on water", "inhaled water", "pulled from the sea"]
+  ar: ["غرق", "غرق في الماء", "غريق", "غرقان", "غرقانة", "ابتلع ماء", "ابتلعت ماء", "غطس وما طلع", "غاص وما رجع", "سحبته من الماء", "طلعته من البحر", "طلعته من المسبح", "يبلع ماء", "توقف عن التنفس في الماء", "غطس ورأسه اصطدم"]

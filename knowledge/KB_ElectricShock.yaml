@@ -1,5 +1,5 @@
 emergency: electric_shock
-version: "1.0"
+version: "1.1"
 languages: [en, ar]
 
 # Rescuer safety comes before triage: the "don't touch them if they're
@@ -19,6 +19,12 @@ languages: [en, ar]
 #
 # CPR steps intentionally brief here (trigger line only) -- full technique
 # lives in cpr.yaml, same handoff pattern used in choking.yaml.
+#
+# --- v1.1 audit note ---
+# Added explicit keywords: field. No content changes -- rescuer-safety
+# sequencing, recovery-position handling, and the "lightning doesn't stay
+# in the body, safe to touch immediately" Q&A all check out against Red
+# Cross electrical-injury guidance.
 
 triage:
   en:
@@ -45,6 +51,7 @@ scenarios:
         - "Call emergency services now. Do not stop what you are doing."
       escalate: true
       escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
     ar:
       steps:
         - "لا تلمسه إذا كان لا يزال ملامساً لمصدر الكهرباء."
@@ -56,6 +63,7 @@ scenarios:
         - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
       escalate: true
       escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
 
   severe:
     en:
@@ -70,6 +78,7 @@ scenarios:
         - "Call emergency services now. Do not stop what you are doing."
       escalate: true
       escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
     ar:
       steps:
         - "لا تلمسه إذا كان لا يزال ملامساً لمصدر الكهرباء."
@@ -82,6 +91,7 @@ scenarios:
         - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
       escalate: true
       escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
 
 general_knowledge:
   en:
@@ -102,3 +112,7 @@ general_knowledge:
       a: "من الآمن لمسه فوراً، فالبرق لا يبقى في الجسم. انقله إلى مكان آمن، تحقق من تنفسه، وابدأ الإنعاش القلبي إذا احتاج."
     - q: "الكهرباء لا تنطفئ. ماذا أفعل؟"
       a: "استخدم عصا خشبية جافة أو مقبض مكنسة أو أي شيء آخر غير موصل لدفعه بعيداً عن المصدر. لا تستخدم أبداً أي شيء معدني أو مبلل."
+
+keywords:
+  en: ["electric", "electric shock", "electrocuted", "electrocution", "shocked by electricity", "electrical shock", "power line", "live wire", "electrical burn", "touched a wire", "got shocked", "zapped", "exposed wire", "downed power line"]
+  ar: ["صعقة كهربائية", "صعقة", "صعق", "انصعق", "انصعقت", "كهرباء", "لمس كهرباء", "سلك كهربائي", "تماس كهربائي", "صدمة كهربائية", "كهربه", "طاحه التيار", "صعقته الكهرباء"]

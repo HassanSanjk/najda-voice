@@ -1,5 +1,5 @@
 emergency: cpr
-version: "1.0"
+version: "1.1"
 languages: [en, ar]
 
 # No mild/severe split exists for CPR -- by definition, arriving in this
@@ -19,6 +19,15 @@ languages: [en, ar]
 # AED usage is a single conditional prompt to fetch and turn it on --
 # modern AEDs voice-guide the rest themselves, so pad placement and shock
 # steps aren't scripted here beyond a brief general_knowledge answer.
+#
+# --- v1.1 audit note ---
+# Added explicit keywords: field. Deliberately kept broad ("collapsed",
+# "passed out", "no pulse") since a bystander in this scenario is very
+# unlikely to say the clinical term "cardiac arrest" -- they'll describe
+# what they see. Content spot-check: 30:2 compression-to-breath ratio,
+# ~2 inch adult / ~1.5 inch infant depth, and ~100-120/min rate ("two
+# pushes per second") all match current AHA/Red Cross guidance. No
+# corrections needed.
 
 triage:
   en:
@@ -50,6 +59,7 @@ scenarios:
         - "Call emergency services now. Do not stop what you are doing."
       escalate: true
       escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
     ar:
       steps:
         - "اضربه بقوة على كتفه واصرخ، هل أنت بخير؟"
@@ -66,6 +76,7 @@ scenarios:
         - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
       escalate: true
       escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
 
   infant:
     en:
@@ -82,6 +93,7 @@ scenarios:
         - "Call emergency services now. Do not stop what you are doing."
       escalate: true
       escalation_phrase: "Call emergency services now. Do not stop what you are doing."
+      follow_up: null
     ar:
       steps:
         - "اضرب قدمه برفق واصرخ باسمه بصوت عالٍ."
@@ -95,6 +107,7 @@ scenarios:
         - "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
       escalate: true
       escalation_phrase: "اتصل بالإسعاف الآن. لا تتوقف عما تفعله."
+      follow_up: null
 
 general_knowledge:
   en:
@@ -123,3 +136,7 @@ general_knowledge:
       a: "أعطِ نفسين اصطناعيين أولاً قبل أن تبدأ الضغط على الصدر. ثم استمر بالنمط المعتاد: ثلاثين ضغطة ونفسين."
     - q: "متى يمكنني التوقف عن الإنعاش القلبي؟"
       a: "توقف إذا بدأ يتنفس أو يتحرك بنفسه، أو إذا وصل المسعفون وتولوا الأمر، أو إذا أصبحت منهكاً جداً للاستمرار."
+
+keywords:
+  en: ["not breathing", "stopped breathing", "unconscious", "unresponsive", "cardiac arrest", "heart stopped", "no pulse", "collapsed", "passed out", "fainted", "cpr", "resuscitation", "not waking up", "wont wake up", "won't wake up", "no heartbeat", "not moving", "pulse", "heart attack"]
+  ar: ["لا يتنفس", "ما يتنفس", "توقف عن التنفس", "فقد الوعي", "فاقد الوعي", "واقع ولا يستجيب", "سقط ولا يستجيب", "قلبه توقف", "توقف قلبه", "انعاش", "إنعاش قلبي", "ما يستجيب", "مغمى عليه", "اغمي عليه", "ما فيه نبض", "ما يرد", "نبض", "قلب", "إنعاش", "مغمى", "أغمي"]
