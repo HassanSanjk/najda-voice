@@ -73,7 +73,7 @@ najda-voice/
 ├── requirements.txt            — pip dependencies
 ├── Dockerfile                  — container image (python:3.14-slim)
 ├── docker-compose.yml          — production deployment on Oracle Cloud (with healthcheck)
-├── .env.example                — all 17 config fields documented
+├── .env.example                — all 19 config fields documented
 │
 ├── app/
 │   ├── main.py                 — FastAPI app factory, lifespan, prewarm
@@ -93,7 +93,7 @@ najda-voice/
 │   │
 │   ├── services/
 │   │   ├── deepgram_stt.py     — Streaming STT (keepalive, UtteranceEnd)
-│   │   ├── deepgram_tts.py     — English TTS (Aura-2, rollback-only)
+│   │   ├── deepgram_tts.py     — English TTS (Aura-2, runtime fallback via TTS_PROVIDER_EN=deepgram)
 │   │   ├── elevenlabs_tts.py   — Arabic TTS fallback (Flash v2.5)
 │   │   ├── groq_tts.py         — Arabic + English TTS (Orpheus, WAV→mu-law)
 │   │   └── groq_llm.py         — LLM streaming (gpt-oss-20b)
@@ -134,7 +134,7 @@ najda-voice/
 
 ### `config.py` — Configuration
 
-Pydantic `BaseSettings` reading from `.env`. 17 fields total:
+Pydantic `BaseSettings` reading from `.env`. 19 fields total:
 
 | Field | Default | Purpose |
 |-------|---------|---------|
@@ -142,15 +142,19 @@ Pydantic `BaseSettings` reading from `.env`. 17 fields total:
 | `telnyx_phone_number` | `""` | Your Telnyx number |
 | `telnyx_telephony_credential_id` | `""` | For browser WebRTC dialer |
 | `deepgram_api_key` | `""` | Deepgram STT (TTS moved to Groq Orpheus) |
+| `deepgram_tts_model_en` | `"aura-2-orpheus-en"` | English Aura-2 voice (used when `TTS_PROVIDER_EN=deepgram`) |
 | `stt_language_ar` | `"ar"` | Arabic STT dialect (ar-EG, ar-SA, etc.) |
 | `groq_api_key` | `""` | Groq LLM + Orpheus TTS (both languages) |
 | `tts_provider_ar` | `"groq"` | `"groq"` or `"elevenlabs"` |
+| `tts_provider_en` | `"groq"` | `"groq"` (Orpheus) or `"deepgram"` (Aura-2 runtime rollback) |
 | `groq_tts_voice_ar` | `"aisha"` | Orpheus Arabic voice name |
 | `groq_tts_voice_en` | `"austin"` | Orpheus English voice name (`canopylabs/orpheus-v1-english`) |
+| `groq_tts_model_en` | `"canopylabs/orpheus-v1-english"` | Orpheus English model id |
 | `groq_tts_concurrency` | `1` | Concurrent TTS requests (keep 1 on free tier) |
 | `groq_reasoning_effort` | `"low"` | LLM reasoning effort (low/medium/high) — test medium for Arabic grammar |
 | `elevenlabs_api_key` | `""` | ElevenLabs (if using as Arabic TTS) |
 | `elevenlabs_voice_id_ar` | `""` | ElevenLabs voice ID for Arabic |
+| `provider_timeout_seconds` | `60` | Per-provider HTTP timeout (Groq TTS/LLM, Deepgram TTS, ElevenLabs) |
 | `app_env` | `"development"` | Controls debug logging + uvicorn reload |
 | `public_base_url` | `""` | Ngrok URL (required — used in TeXML) |
 
@@ -326,14 +330,14 @@ Wraps Deepgram's `listen.v1.connect()` in an async context manager:
 - **`close()`** — Cancels keepalive loop, sends close stream, exits
   connection context.
 
-### `app/services/deepgram_tts.py` — English TTS (Aura-2) [rollback-only]
+### `app/services/deepgram_tts.py` — English TTS (Aura-2) [runtime rollback]
 
 - Model: `aura-2-orpheus-en` (default — `DEEPGRAM_TTS_MODEL_EN`)
 - Output: raw mu-law 8kHz (`container="none"`), directly playable by Telnyx.
-- **Status:** kept for rollback only. English TTS consolidated onto Groq
+- **Status:** rollback path — English TTS consolidated onto Groq
   Orpheus (`canopylabs/orpheus-v1-english`) in Aug 2026 so both languages
-  share one provider/code path. To revert: set
-  `language.TTS_PROVIDER_BY_LANGUAGE["en"] = "deepgram_aura"` and restart.
+  share one provider/code path. Select it at runtime without a code change
+  via `TTS_PROVIDER_EN=deepgram` in `.env` (default `groq`).
 - **Rate limiting:** `asyncio.Semaphore(3)` caps concurrent requests. Live
   testing showed burst of 6+ sentence requests triggering Deepgram's 429
   rate limit, dropping sentences.
@@ -755,7 +759,7 @@ GROQ_API_KEY=
 PUBLIC_BASE_URL=https://marbled-endanger-outer.ngrok-free.dev
 ```
 
-See `.env.example` for all 17 fields and their descriptions.
+See `.env.example` for all 19 fields and their descriptions.
 
 ### 2. Ngrok
 

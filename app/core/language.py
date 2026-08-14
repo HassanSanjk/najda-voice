@@ -8,7 +8,9 @@ Nova-3 Arabic launch.
 TTS side: Groq Orpheus covers both languages (Arabic Saudi dialect +
 English). English consolidated onto it Aug 2026, replacing Deepgram Aura
 (which has no Arabic voice — verified; Aura-2 covers en, es, nl, fr, de,
-it, ja only). See app/services/groq_tts.py.
+it, ja only). English is still runtime-switchable back to Aura via
+TTS_PROVIDER_EN=deepgram (see get_tts_provider()). See
+app/services/groq_tts.py.
 """
 
 from pathlib import Path
@@ -31,15 +33,19 @@ PROMPT_FILE_BY_LANGUAGE = {
     "ar": PROMPTS_DIR / "system_ar.txt",
 }
 
-# TTS provider per language. English was Deepgram Aura until Aug 2026; it
-# now routes to Groq Orpheus English (canopylabs/orpheus-v1-english) so
-# both languages share one provider/code path — see app/services/groq_tts.py.
-# Arabic reworked July 2026: ElevenLabs' free tier rejects library voices
-# via API (402), so the default Arabic provider is Groq-hosted Orpheus.
-# ElevenLabs remains selectable via TTS_PROVIDER_AR=elevenlabs.
-TTS_PROVIDER_BY_LANGUAGE: dict[str, str | None] = {
-    "en": "groq_orpheus",
-    "ar": None,  # resolved dynamically from settings — see get_tts_provider()
+# TTS provider per language, resolved dynamically from env for BOTH
+# languages so each has the same real runtime fallback (not just the same
+# failure detection). English: "groq" (Orpheus, default) or "deepgram"
+# (Aura-2 rollback — deepgram_tts.py). Arabic: "groq" (Orpheus, default)
+# or "elevenlabs". English was Deepgram Aura until Aug 2026, when it was
+# consolidated onto Groq Orpheus so both languages share one provider/code
+# path — see app/services/groq_tts.py. Arabic reworked July 2026: ElevenLabs'
+# free tier rejects library voices via API (402), so the default Arabic
+# provider is Groq-hosted Orpheus; ElevenLabs remains selectable via
+# TTS_PROVIDER_AR=elevenlabs.
+_EN_PROVIDERS = {
+    "groq": "groq_orpheus",
+    "deepgram": "deepgram_aura",
 }
 
 _AR_PROVIDERS = {
@@ -68,10 +74,12 @@ def detect_language(deepgram_language_field: str | None) -> str:
 
 
 def get_tts_provider(language: str) -> str | None:
+    from config import settings  # local import to avoid config<->language cycles
     if language == "ar":
-        from config import settings  # local import to avoid config<->language cycles
         return _AR_PROVIDERS.get(settings.tts_provider_ar.strip().lower(), "groq_orpheus")
-    return TTS_PROVIDER_BY_LANGUAGE.get(language)
+    if language == "en":
+        return _EN_PROVIDERS.get(settings.tts_provider_en.strip().lower(), "groq_orpheus")
+    return None
 
 
 def get_voice_for_language(language: str) -> str:

@@ -66,7 +66,7 @@ from app.core import language, memory
 from app.models.schemas import CallSession, Turn
 from app.prompts import kb_loader
 from app.prompts.prompt_builder import build_messages
-from app.services import elevenlabs_tts, groq_tts
+from app.services import deepgram_tts, elevenlabs_tts, groq_tts
 from app.services.deepgram_stt import DeepgramSTTStream
 from app.services.groq_llm import stream_completion
 from config import settings
@@ -266,6 +266,11 @@ def _note_tts_failure(lang: str, exc: BaseException) -> bool:
                 f"{model_path} — then restart. Otherwise check Model "
                 "Permissions/billing at console.groq.com."
                 + (" Or set TTS_PROVIDER_AR=elevenlabs." if lang == "ar" else "")
+            )
+        elif provider == "deepgram_aura":
+            hint = (
+                " Check the Deepgram API key/plan at console.deepgram.com, or set "
+                "TTS_PROVIDER_EN=groq to route English through Orpheus instead."
             )
         logger.error(
             f"{lang.upper()} TTS ({provider}) marked UNUSABLE for this process (HTTP {status}): "
@@ -1107,6 +1112,8 @@ async def _synthesize_speech(text: str, lang: str) -> bytes:
         audio = await groq_tts.synthesize(text, language=lang)
     elif provider == "elevenlabs":
         audio = await elevenlabs_tts.synthesize(text, language=lang)
+    elif provider == "deepgram_aura":
+        audio = await deepgram_tts.synthesize(text, language=lang)
     else:
         raise ValueError(f"No TTS provider resolved for language '{lang}'")
 

@@ -12,10 +12,9 @@ class Settings(BaseSettings):
 
     # Deepgram
     deepgram_api_key: str = ""
-    # English Aura-2 TTS voice (Deepgram). Kept for ROLLBACK only — English
-    # now routes to Groq Orpheus (see TTS_PROVIDER_BY_LANGUAGE). To revert,
-    # set language.TTS_PROVIDER_BY_LANGUAGE["en"] back to "deepgram_aura"
-    # and set this voice in .env (DEEPGRAM_TTS_MODEL_EN).
+    # English Aura-2 TTS voice (Deepgram). Used when TTS_PROVIDER_EN=deepgram
+    # (Aura-2 has no Arabic voice — English only). English defaults to Groq
+    # Orpheus (see TTS_PROVIDER_EN below).
     deepgram_tts_model_en: str = "aura-2-orpheus-en"
     # Arabic STT dialect code for Nova-3 (default "ar" = pan-Arab/MSA).
     # Bias recognition toward the caller's dialect with e.g. ar-EG, ar-SA,
@@ -28,6 +27,11 @@ class Settings(BaseSettings):
     # Arabic TTS provider: "groq" (Orpheus on Groq — default, uses the same
     # GROQ_API_KEY as the LLM, no extra account) or "elevenlabs".
     tts_provider_ar: str = "groq"
+    # English TTS provider: "groq" (Orpheus English — default) or "deepgram"
+    # (Aura-2, rollback path — see deepgram_tts.py). Mirrors TTS_PROVIDER_AR
+    # so both languages have the same real runtime fallback, not just the
+    # same failure detection (get_tts_provider() in app/core/language.py).
+    tts_provider_en: str = "groq"
     # Orpheus Arabic voice: abdullah, fahad, sultan (male); lulwa, noura,
     # aisha (female). Listen before changing — run scripts/test_arabic_tts.py.
     groq_tts_voice_ar: str = "aisha"

@@ -48,6 +48,7 @@ async def lifespan(app: FastAPI):
             f"Arabic TTS and Arabic language detection are DISABLED; calls will "
             f"run English-only until it is configured in .env"
         )
+    logger.info(f"English TTS provider: {get_tts_provider('en')}")
 
     # Pre-synthesize the fixed opening line(s) so the first call doesn't
     # pay a TTS round trip for a greeting that never changes. Non-fatal
