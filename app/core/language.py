@@ -6,9 +6,9 @@ dialect codes below are real Deepgram language codes as of their
 Nova-3 Arabic launch.
 
 TTS side: Groq Orpheus covers both languages (Arabic Saudi dialect +
-English). English consolidated onto it Aug 2026, replacing Deepgram Aura
-(which has no Arabic voice — verified; Aura-2 covers en, es, nl, fr, de,
-it, ja only). English is still runtime-switchable back to Aura via
+English). English uses the same client, replacing Deepgram Aura (which
+has no Arabic voice — Aura-2 covers en, es, nl, fr, de, it, ja only).
+English is still runtime-switchable back to Aura via
 TTS_PROVIDER_EN=deepgram (see get_tts_provider()). See
 app/services/groq_tts.py.
 """
@@ -37,9 +37,8 @@ PROMPT_FILE_BY_LANGUAGE = {
 # languages so each has the same real runtime fallback (not just the same
 # failure detection). English: "groq" (Orpheus, default) or "deepgram"
 # (Aura-2 rollback — deepgram_tts.py). Arabic: "groq" (Orpheus, default)
-# or "elevenlabs". English was Deepgram Aura until Aug 2026, when it was
-# consolidated onto Groq Orpheus so both languages share one provider/code
-# path — see app/services/groq_tts.py. Arabic reworked July 2026: ElevenLabs'
+# or "elevenlabs". English consolidated onto Groq Orpheus so both languages
+# share one provider/code path — see app/services/groq_tts.py. ElevenLabs'
 # free tier rejects library voices via API (402), so the default Arabic
 # provider is Groq-hosted Orpheus; ElevenLabs remains selectable via
 # TTS_PROVIDER_AR=elevenlabs.

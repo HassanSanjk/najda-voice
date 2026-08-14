@@ -19,8 +19,7 @@ languages: [en, ar]
 # bleeding.yaml on purpose: press AROUND the wound, not directly on it,
 # since direct pressure on a protruding bone fragment is harmful.
 #
-# --- v1.1 audit note -- REGRESSION FIX ---
-# This is the file that caused the two confirmed live failures:
+# Regression-fix history (keyword coverage):
 #   1. "my hand is broke" -- only "broken" was listed, not "broke".
 #      FIXED: added broke/break/breaking/breaks alongside broken.
 #   2. "يدي مكسورة" -- keyword list only had the bare root كسر. Word-

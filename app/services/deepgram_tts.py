@@ -1,15 +1,13 @@
 """
-Deepgram Aura TTS client.
+Deepgram Aura TTS client — English-only rollback provider.
 
-IMPORTANT: Deepgram Aura only supports English, Spanish, Dutch, French,
-German, Italian, and Japanese (verified against current docs — see
-app/core/language.py for the full note). It has no Arabic voice. This
-client only ever handles English; Arabic must route through whatever
-provider gets chosen later (still an open decision).
+Aura only supports English, Spanish, Dutch, French, German, Italian,
+and Japanese (see app/core/language.py for the full note) and has no
+Arabic voice, so this client handles English only. It is reachable at
+runtime via `TTS_PROVIDER_EN=deepgram`.
 
-Verified against installed deepgram-sdk 7.4.0: generate() is an async
-generator yielding raw bytes chunks, not an awaitable — must be consumed
-with `async for`, not `await`.
+Note: generate() is an async generator yielding raw bytes chunks, not
+an awaitable — it must be consumed with `async for`, not `await`.
 """
 
 import asyncio

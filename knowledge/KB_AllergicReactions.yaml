@@ -12,15 +12,12 @@ languages: [en, ar]
 # than a second triage question, to keep the one-question cap while still
 # handling the have-injector / no-injector split.
 #
-# --- v1.1 audit note ---
-# Added the explicit keywords: field (file previously had none and was
-# relying on the Python-side fallback dict -- closing that gap per the
-# project-wide keyword audit). Expanded past bare headwords ("allergy",
-# "rash") to cover inflected and colloquial forms a real caller would
-# actually say, same root cause as the fractures.yaml "broke"/"مكسورة"
-# false-negative bugs. No changes made to steps or general_knowledge
-# content; spot-checked both against Red Cross/AHA anaphylaxis guidance
-# and found them consistent with recognized protocol.
+# Keyword coverage: the explicit keywords: field was added (the file
+# previously relied on the Python-side fallback dict) and expanded past
+# bare headwords ("allergy", "rash") to inflected and colloquial forms a
+# real caller would actually say — same root cause as the fractures.yaml
+# "broke"/"مكسورة" false negatives. Steps and general_knowledge content
+# follow Red Cross/AHA anaphylaxis guidance.
 # VERIFY: "lay them flat and raise their legs if they can breathe" is
 # standard Red Cross first-aid phrasing and is left as-is, but some newer
 # clinical guidance is more cautious about any sudden postural change

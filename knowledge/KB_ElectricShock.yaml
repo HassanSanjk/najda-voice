@@ -20,11 +20,10 @@ languages: [en, ar]
 # CPR steps intentionally brief here (trigger line only) -- full technique
 # lives in cpr.yaml, same handoff pattern used in choking.yaml.
 #
-# --- v1.1 audit note ---
-# Added explicit keywords: field. No content changes -- rescuer-safety
+# Keyword coverage: explicit keywords: field added. Rescuer-safety
 # sequencing, recovery-position handling, and the "lightning doesn't stay
-# in the body, safe to touch immediately" Q&A all check out against Red
-# Cross electrical-injury guidance.
+# in the body, safe to touch immediately" Q&A follow Red Cross
+# electrical-injury guidance.
 
 triage:
   en:

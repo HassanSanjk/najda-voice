@@ -1,21 +1,19 @@
 """
 Groq-hosted Orpheus TTS client — Arabic (Saudi dialect) AND English speech.
 
-Why this exists (July 2026): ElevenLabs was the original Arabic TTS
-choice, but its free tier rejects *library* voices via API (402
-paid_plan_required — confirmed in live testing), which left Arabic
-callers in silence. Orpheus runs on the SAME Groq account/key this
+Arabic: ElevenLabs was the original choice, but its free tier rejects
+*library* voices via API (402 paid_plan_required), which left Arabic
+callers in silence. Orpheus runs on the same Groq account/key this
 project already uses for its LLM — no extra account, no extra env vars,
 and $40/1M characters on paid tiers (a full call is a fraction of a
 cent). ElevenLabs remains selectable via TTS_PROVIDER_AR=elevenlabs.
 
-Since Jan 2026 Groq also hosts an English Orpheus model
-(canopylabs/orpheus-v1-english, $22/1M chars) — English TTS was
-consolidated onto it (Aug 2026) so both languages share ONE provider,
-client, conversion path and concurrency policy, replacing Deepgram Aura.
+English: Groq hosts an English Orpheus model
+(canopylabs/orpheus-v1-english) — English TTS uses it so both languages
+share ONE provider, client, conversion path and concurrency policy.
 Deepgram remains for STT only.
 
-Verified against Groq's current docs and the installed groq SDK (1.5.0):
+Model/API facts:
 - Arabic: "canopylabs/orpheus-arabic-saudi" — Groq's supported replacement
   for the deprecated playai-tts-arabic. Six voices: abdullah, fahad,
   sultan (male); lulwa, noura, aisha (female).

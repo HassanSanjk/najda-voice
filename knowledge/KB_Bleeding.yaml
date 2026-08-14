@@ -7,16 +7,15 @@ languages: [en, ar]
 # elevation covers most cases. Answered as a fallback in general_knowledge
 # if the caller asks directly.
 #
-# --- v1.1 audit note ---
-# Added explicit keywords: field. Included both clinical terms (hemorrhage,
-# laceration) and how callers actually describe it in a panic ("so much
-# blood", "cut myself"), plus Arabic verb-form derivatives of نزف/جرح, not
-# just the bare roots. Also added missing escalate:false / escalation_phrase:""
-# to the "minor" branch and follow_up:null to "severe" so both branches are
-# schema-complete rather than relying on field omission.
-# Content spot-check: pressure/elevation/leave-embedded-object-in-place,
-# tourniquet-as-last-resort, nosebleed lean-forward, and shock signs all
-# match Red Cross first-aid guidance. No medical corrections needed.
+# Keyword coverage: includes both clinical terms (hemorrhage, laceration)
+# and how callers actually describe it in a panic ("so much blood", "cut
+# myself"), plus Arabic verb-form derivatives of نزف/جرح, not just the
+# bare roots. The "minor" branch has escalate:false / escalation_phrase:""
+# and "severe" has follow_up:null so both branches are schema-complete
+# rather than relying on field omission.
+# Technique review: pressure/elevation/leave-embedded-object-in-place,
+# tourniquet-as-last-resort, nosebleed lean-forward, and shock signs
+# follow Red Cross first-aid guidance.
 
 triage:
   en:

@@ -1,23 +1,23 @@
 """
 Live verification of the claimed Groq Orpheus 429 rate-limit behavior.
 
-Background (see README / PROJECT_MEMORY §4.28): a live Aug 2 call produced
-16-23s single-sentence TTS latency, attributed to "GROQ_TTS_CONCURRENCY=1's
-1200-token/min budget" producing 429 storms with 6s retry-after waits.
-The free-tier limits are real (Groq docs: canopylabs/orpheus-arabic-saudi
-= 10 RPM / 100 RPD / 1.2K TPM / 3.6K TPD) and the SDK retry math can
-produce 6-15s per sentence on persistent 429s (max_retries=2, honoring
-Retry-After <= 60s), but the Aug 6 logs show zero 429s and max 3.29s
-synthesis. This script settles it empirically.
+Background: a call produced 16-23s single-sentence TTS latency,
+attributed to a per-minute token budget producing 429 storms with 6s
+retry-after waits. The free-tier limits are real (Groq docs:
+canopylabs/orpheus-arabic-saudi = 10 RPM / 100 RPD / 1.2K TPM / 3.6K
+TPD) and the SDK retry math can produce 6-15s per sentence on
+persistent 429s (max_retries=2, honoring Retry-After <= 60s), but the
+observed logs showed zero 429s and max 3.29s synthesis. This script
+settles it empirically.
 
-Approach: replay the Aug 2 scenario through the REAL production path
+Approach: replay the burst scenario through the REAL production path
 (app.services.groq_tts.synthesize, WAV->mulaw conversion included) with
 an instrumented httpx client whose response hook records EVERY HTTP
 response the SDK sees — including intermediate 429s and retry attempts.
 
 Phases:
   0  baseline: one short sentence.
-  A  Aug 2 replay: 9 KB sentences, sequential (production concurrency=1).
+   A  burst replay: 9 KB sentences, sequential (production concurrency=1).
   B  same 9 sentences, concurrent (what raising GROQ_TTS_CONCURRENCY does).
   C  forced overload: 26 real KB sentences (~1360 chars, over the
      1200-TPM ceiling) fired concurrently — guarantees observing 429s
@@ -96,7 +96,7 @@ GK_ANSWERS = [
 
 PHASES = {
     "0": ("baseline (1 sentence)", [ADULT_STEPS[0]], 1, False),
-    "A": ("Aug 2 replay: 9 sentences, sequential", ADULT_STEPS[:9], 1, False),
+    "A": ("burst replay: 9 sentences, sequential", ADULT_STEPS[:9], 1, False),
     "B": ("same 9 sentences, concurrent", ADULT_STEPS[:9], 9, True),
     # 12 + 9 + 5 = 26 requests, ~1360 chars (~1360 tokens) — exceeds the
     # 1200-TPM ceiling AND the 10-RPM ceiling, so both limit dimensions are

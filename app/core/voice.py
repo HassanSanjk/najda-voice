@@ -157,15 +157,15 @@ SENTENCE_ENDINGS = {".", "!", "?", "؟"}
 MAX_BUFFER_BEFORE_FORCED_FLUSH = 200
 
 # Caps ungrounded (scenario_hint is None — no matched KB file) replies only.
-# A matched scenario's scripted steps are never truncated by this. Observed
-# live (Aug 2 headache call, scenario=None): an unbounded 9-sentence reply
-# ran into GROQ_TTS_CONCURRENCY=1's 1200-token/min budget on its own,
-# producing 16-23s single-sentence TTS latency from stacked 429 retry-after
-# waits — long enough a real caller would likely hang up mid-reply. Capping
-# sentence count is a more reliable fix than post-hoc near-duplicate
-# filtering, which the real paraphrased pair showed is defeated by inflection
-# ("هل تشرب ماء كافٍ؟" vs "هل شربت كميات كافية..." share ~0.1 trigram
-# overlap) — see §4.28.
+# A matched scenario's scripted steps are never truncated by this. An
+# ungrounded reply (scenario=None) is capped because unbounded chatter
+# burns the TTS provider's per-minute token budget — an observed
+# 9-sentence reply produced 16-23s single-sentence latency from stacked
+# 429 retry-after waits, long enough that a real caller would hang up
+# mid-reply. Capping sentence count is more reliable than post-hoc
+# near-duplicate filtering, which real paraphrased pairs defeat via
+# inflection ("هل تشرب ماء كافٍ؟" vs "هل شربت كميات كافية..." share
+# ~0.1 trigram overlap).
 MAX_SENTENCES_NO_SCENARIO = 4
 
 _greeting_audio_cache: dict[str, bytes] = {}
@@ -823,11 +823,11 @@ async def _generate_reply(session: CallSession, utterance_received_at: float) ->
     # history in _flush_utterance right before this task was created.
     current_transcript = history[-1].content if history and history[-1].role == "user" else None
 
-    # Generalized question-repeat guard (Aug 15 live incident: a caller who
-    # kept failing to answer was asked the same question 4x, reworded).
-    # Runs BEFORE any generation/streaming, from prior assistant turns only,
-    # so a repeated question is cut off at the source — the pipelined TTS
-    # in _stream_and_queue_reply means there is no post-assembly point to
+    # Question-repeat guard: callers who keep failing to answer one question
+    # must not be asked it again and again in new wording. Runs BEFORE any
+    # generation/streaming, from prior assistant turns only, so a repeated
+    # question is cut off at the source — the pipelined TTS in
+    # _stream_and_queue_reply means there is no post-assembly point to
     # intercept. On the hard override the matched scenario's own escalation
     # phrase is spoken (already-reviewed copy; it contains no question mark,
     # so it can't re-trigger the guard), otherwise a soft nudge rides the
@@ -936,8 +936,8 @@ async def _stream_and_queue_reply(
 
     scenario_hint: the matched KB filename, or None for ungrounded (no-KB)
     conversation. Ungrounded replies are capped at MAX_SENTENCES_NO_SCENARIO
-    to prevent a free-running reply from blowing the TTS rate budget (see
-    §4.28); a matched scenario's steps are never truncated."""
+    to prevent a free-running reply from blowing the TTS rate budget; a
+    matched scenario's steps are never truncated."""
     buffer = ""
     full_reply_parts: list[str] = []
     tts_tasks: list[asyncio.Task] = []

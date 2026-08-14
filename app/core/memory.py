@@ -1,9 +1,9 @@
 """
 Per-call conversation memory.
 
-Day 7 status: real summarization implemented. Older turns get condensed
-into a single summary turn via Groq once a call exceeds
-SUMMARIZE_AFTER_TURNS, keeping the most recent KEEP_RECENT_TURNS intact.
+Once a call exceeds SUMMARIZE_AFTER_TURNS, older turns are condensed into
+a single summary turn via Groq, keeping the most recent KEEP_RECENT_TURNS
+verbatim. This keeps the prompt from growing without bound on long calls.
 
 Summarization runs as a detached background task rather than inline —
 blocking the live turn on a summarization call would add latency to

@@ -19,13 +19,11 @@ languages: [en, ar]
 # recovery-position and CPR-trigger lines used in electric_shock.yaml,
 # reusing identical phrasing on purpose for consistency across files.
 #
-# --- v1.1 audit note ---
-# Added explicit keywords: field. No content changes -- the no-cut,
-# no-suck, no-ice, no-tourniquet, immobilize-at-or-below-heart-level
-# checklist matches current WHO/Red Cross snakebite guidance, which
-# specifically supersedes older folk-remedy advice (cutting the wound or
-# sucking out venom is now known to do more harm than good and is
-# correctly excluded here).
+# Keyword coverage: explicit keywords: field added. The no-cut, no-suck,
+# no-ice, no-tourniquet, immobilize-at-or-below-heart-level checklist
+# follows current WHO/Red Cross snakebite guidance, which supersedes
+# older folk-remedy advice (cutting the wound or sucking out venom does
+# more harm than good and is intentionally excluded).
 
 triage:
   en:

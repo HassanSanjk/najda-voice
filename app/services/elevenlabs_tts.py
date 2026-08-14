@@ -1,18 +1,18 @@
 """
-ElevenLabs TTS client — used for Arabic responses only.
+ElevenLabs TTS client — optional Arabic provider.
 
-Chosen specifically for Arabic (Day 8 decision) since Deepgram Aura has
-no Arabic voice at all (see deepgram_tts.py / core/language.py). Flash
-v2.5 was chosen over faster alternatives — Cartesia is faster but has
+Arabic needs a TTS provider that actually supports the language, since
+Deepgram Aura has no Arabic voice (see deepgram_tts.py / core/language.py).
+Flash v2.5 is used over faster alternatives: Cartesia is faster but has
 weak Arabic support, the wrong tradeoff here. Voxtral TTS scored higher
 in blind Arabic-speaker preference tests but requires self-hosting,
-ruled out given this project's timeline; flagged as a possible future
-upgrade, not pursued now.
+which this project's timeline rules out; it remains a possible future
+upgrade.
 
-Verified against installed elevenlabs SDK: convert() is an async
-generator yielding raw bytes chunks (same pattern as Deepgram's
-generate() — the SDK's own docstring example shows `await` on it,
-which is wrong). Must be iterated with `async for`, not `await`.
+Note: convert() is an async generator yielding raw bytes chunks (same
+pattern as Deepgram's generate() — the SDK's own docstring example
+shows `await` on it, which is wrong). Must be iterated with
+`async for`, not `await`.
 """
 
 from elevenlabs.client import AsyncElevenLabs

@@ -20,14 +20,12 @@ languages: [en, ar]
 # modern AEDs voice-guide the rest themselves, so pad placement and shock
 # steps aren't scripted here beyond a brief general_knowledge answer.
 #
-# --- v1.1 audit note ---
-# Added explicit keywords: field. Deliberately kept broad ("collapsed",
-# "passed out", "no pulse") since a bystander in this scenario is very
-# unlikely to say the clinical term "cardiac arrest" -- they'll describe
-# what they see. Content spot-check: 30:2 compression-to-breath ratio,
-# ~2 inch adult / ~1.5 inch infant depth, and ~100-120/min rate ("two
-# pushes per second") all match current AHA/Red Cross guidance. No
-# corrections needed.
+# Keyword coverage: deliberately broad ("collapsed", "passed out", "no
+# pulse") since a bystander in this scenario is unlikely to say the
+# clinical term "cardiac arrest" — they describe what they see. Technique:
+# 30:2 compression-to-breath ratio, ~2 inch adult / ~1.5 inch infant
+# depth, and ~100-120/min rate ("two pushes per second") follow current
+# AHA/Red Cross guidance.
 
 triage:
   en:

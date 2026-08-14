@@ -18,16 +18,14 @@ languages: [en, ar]
 # keyword routing: a caller describing an electrical burn as "burn" may
 # never reach that file.
 #
-# --- v1.1 audit note ---
-# Added explicit keywords: field, including "scald"/"scalded" and Arabic
-# سلق which callers use for hot-liquid burns specifically (not just حرق).
-# Added missing escalate:false/escalation_phrase:"" to "minor" and
-# follow_up:null to "severe" for schema completeness.
-# VERIFY: minor-branch cooling duration is given as fifteen minutes.
-# Red Cross and WHO sources both fall in the 10-20 minute range depending
-# on source and burn size; fifteen is within range and not being changed,
-# but flagging the exact figure for a human to confirm against whichever
-# single source the project wants to standardize on.
+# Keyword coverage: includes "scald"/"scalded" and Arabic سلق which
+# callers use for hot-liquid burns specifically (not just حرق). "minor"
+# has escalate:false/escalation_phrase:"" and "severe" has follow_up:null
+# for schema completeness.
+# VERIFY: minor-branch cooling duration is fifteen minutes. Red Cross and
+# WHO sources fall in the 10-20 minute range depending on source and burn
+# size; fifteen is within range, but the exact figure should be confirmed
+# against whichever single source the project standardizes on.
 
 triage:
   en:

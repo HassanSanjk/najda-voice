@@ -9,8 +9,8 @@ from pydantic import BaseModel
 
 # ---------- Twilio Media Streams (WS /ws/media) ----------
 # Protocol reference: https://www.twilio.com/docs/voice/media-streams/websocket-messages
-# NOTE: verify field names against Twilio's current docs before Day 3 —
-# streaming APIs occasionally add/rename fields.
+# Streaming APIs occasionally add/rename fields — re-verify against the
+# current docs when updating this.
 
 class MediaFormat(BaseModel):
     encoding: str  # e.g. "audio/x-mulaw"

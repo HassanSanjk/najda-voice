@@ -1,10 +1,10 @@
 """Question-repeat guard tests — run with: python tests/test_question_repeat.py
 
-Covers the generalized guard added Aug 15 (see kb_loader.detect_question_stuck):
+Covers the question-repeat guard (see kb_loader.detect_question_stuck):
 extraction of questions from assistant turns, clustering of reworded repeats
-(the Aug 14 live incident: one question asked 4x reworded), the hard-override
-ask-count gate, window scoping, the prompt soft nudge, and the escalation-phrase
-lookup the override speaks.
+(a caller who kept failing to answer was asked the same question 4x,
+reworded each time), the hard-override ask-count gate, window scoping, the
+prompt soft nudge, and the escalation-phrase lookup the override speaks.
 """
 
 import sys
@@ -52,7 +52,7 @@ def test_reworded_repeat_clusters_and_overrides() -> None:
     print("=" * 60)
     print("TEST 2: Aug-14 rewording sequence clusters; hard override fires")
     print("=" * 60)
-    # The live incident: the same question, reworded each time, 4x.
+    # The motivating case: the same question, reworded each time, 4x.
     assistant_texts = [
         "هل لون رجلك أصفر؟",
         "لون رجلك شاحب أو مصفر؟",

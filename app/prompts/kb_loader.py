@@ -252,12 +252,11 @@ _KEYWORD_PATTERN_CACHE: dict[str, re.Pattern] = {}
 
 def _keyword_matches(kw: str, normalized_text: str) -> bool:
     """
-    Word-boundary match, not raw substring. Live incident (Aug 2 test
-    call): the caller said "لا صدمة" (no trauma), and substring search
-    matched the "دم" (blood) keyword -- دم is literally the middle two
-    letters of صدمة -- misrouting a plain headache call into
-    KB_Bleeding, which then asked an unanswerable triage question for
-    the rest of the call. \b works correctly here because Python's re
+    Word-boundary match, not raw substring. This exists because a caller
+    saying "لا صدمة" (no trauma) got substring-matched on the "دم" (blood)
+    keyword -- دم is literally the middle two letters of صدمة -- misrouting
+    a plain headache call into KB_Bleeding, which then asked an
+    unanswerable triage question for the rest of the call. \b works correctly here because Python's re
     treats Arabic letters as \\w characters by default (Unicode-aware),
     so it still matches "دم" correctly when it IS its own word (e.g.
     "يوجد دم على الجرح"), just not when embedded inside a longer word.
@@ -288,7 +287,7 @@ def match_scenario(
     (e.g. a trauma call where the caller then says "can't breathe",
     matching KB_Choking) must NOT reclassify the emergency. Re-running
     the matcher per utterance without this lock let shared keywords
-    hijack an established scenario mid-call (Aug 15 live call).
+    hijack an established scenario mid-call.
     """
     if already_locked is not None:
         return already_locked
@@ -316,11 +315,11 @@ def get_kb_names() -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Generalized question-repeat guard (Aug 15): a caller who kept failing to
-# answer one question was asked it 4x, reworded each time (live incident).
-# The triage question already has its own guard (detect_triage_delivered);
-# this generalizes that to every question the assistant asks — triage,
-# branch follow_ups, and ad-hoc clarifying questions.
+# Question-repeat guard: callers who keep failing to answer one question
+# must not be asked it again and again in new wording. The triage question
+# already has its own guard (detect_triage_delivered); this generalizes to
+# every question the assistant asks — triage, branch follow_ups, and ad-hoc
+# clarifying questions.
 #
 # Detection is PURE: it runs on prior assistant turns only, at prompt-build
 # time, so the caller can never hear the same question a third time. No

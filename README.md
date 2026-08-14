@@ -59,7 +59,7 @@ sequenceDiagram
 | **Phone provider** | Telnyx | Twilio trial blocks non-US callers. Telnyx US number with no geographic restrictions. |
 | **STT** | Deepgram Nova-3 | Industry-standard streaming STT with `UtteranceEnd` event and per-frame confidence scoring. |
 | **LLM** | Groq `openai/gpt-oss-20b` | Fastest model on Groq (~963 tok/s, ~0.73s TTFT). Chosen over Llama 3.x (deprecated June 2026 by Groq) and Qwen (higher benchmarks but 8x cost and slower — for 30-50 token replies, speed wins). |
-| **English TTS** | Deepgram Aura-2 Asteria | Lowest latency TTS we tested for English. Direct mu-law 8kHz output, no conversion step. |
+| **English TTS** | Groq Orpheus (`canopylabs/orpheus-v1-english`) | Same provider/client/conversion path as Arabic — one concurrency policy, no extra account. (Deepgram Aura-2 remains a runtime rollback via `TTS_PROVIDER_EN=deepgram`.) |
 | **Arabic TTS** | Groq Orpheus (`canopylabs/orpheus-arabic-saudi`) | ElevenLabs free tier rejects library voices via API (402 `paid_plan_required` live). Orpheus reuses the same GROQ_API_KEY — no extra account. |
 
 ---
@@ -216,7 +216,10 @@ graph TD
     C --> D{groq?}
     D -->|yes| E["groq_orpheus"]
     D -->|no| F["elevenlabs"]
-    B -->|no| G["deepgram_aura"]
+    B -->|no| G[Read TTS_PROVIDER_EN from .env]
+    G --> H{groq?}
+    H -->|yes| I["groq_orpheus"]
+    H -->|no| J["deepgram_aura"]
 ```
 
 Key behaviors:
@@ -341,10 +344,10 @@ Wraps Deepgram's `listen.v1.connect()` in an async context manager:
 
 - Model: `aura-2-orpheus-en` (default — `DEEPGRAM_TTS_MODEL_EN`)
 - Output: raw mu-law 8kHz (`container="none"`), directly playable by Telnyx.
-- **Status:** rollback path — English TTS consolidated onto Groq
-  Orpheus (`canopylabs/orpheus-v1-english`) in Aug 2026 so both languages
-  share one provider/code path. Select it at runtime without a code change
-  via `TTS_PROVIDER_EN=deepgram` in `.env` (default `groq`).
+- **Status:** rollback path — English TTS runs on Groq Orpheus
+  (`canopylabs/orpheus-v1-english`) so both languages share one
+  provider/code path. Select Aura at runtime without a code change via
+  `TTS_PROVIDER_EN=deepgram` in `.env` (default `groq`).
 - **Rate limiting:** `asyncio.Semaphore(3)` caps concurrent requests. Live
   testing showed burst of 6+ sentence requests triggering Deepgram's 429
   rate limit, dropping sentences.
@@ -363,7 +366,7 @@ Wraps Deepgram's `listen.v1.connect()` in an async context manager:
 
 ### `app/services/groq_tts.py` — Arabic + English TTS (Groq Orpheus)
 
-Default TTS provider for BOTH languages since Aug 2026:
+Default TTS provider for both languages:
 - Arabic: `canopylabs/orpheus-arabic-saudi` (voice via `GROQ_TTS_VOICE_AR`)
 - English: `canopylabs/orpheus-v1-english` (voice via `GROQ_TTS_VOICE_EN`)
 

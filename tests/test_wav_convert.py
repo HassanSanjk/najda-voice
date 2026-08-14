@@ -1,6 +1,6 @@
 """WAV -> mu-law conversion tests — run with: python tests/test_wav_convert.py
 
-Covers the Aug 15 anti-aliasing fix in groq_tts.py: audioop.ratecv used to
+Covers the anti-aliasing fix in groq_tts.py: audioop.ratecv used to
 resample Orpheus 24kHz WAV to 8kHz with no low-pass filter, folding every
 component above 4kHz back into the voice band (audible static on narrowband
 phone lines). The replacement (resample_poly) must keep a 1kHz tone intact

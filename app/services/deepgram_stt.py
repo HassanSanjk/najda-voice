@@ -1,13 +1,10 @@
 """
-Deepgram Streaming STT client.
+Deepgram streaming STT client.
 
-(Day 3 header comment unchanged — see original for the verified SDK
-facts this implementation relies on.)
-
-Day 6 update: callbacks (_on_message, _on_error, _on_close) are now
-defensive — they're invoked synchronously by the SDK's internals, so a
-bug inside one of them could otherwise propagate somewhere unexpected.
-Wrapped and logged instead.
+The callbacks (_on_message, _on_error, _on_close) are deliberately
+defensive: the SDK invokes them synchronously from its internals, so an
+exception inside one would otherwise propagate into unexpected places.
+They are wrapped and logged instead.
 """
 
 import asyncio

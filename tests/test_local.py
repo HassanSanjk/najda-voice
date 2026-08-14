@@ -23,8 +23,8 @@ def test_kb_loader():
         ("I think my arm is broken", "en", "KB_Fractures.yaml"),
         ("hello how are you", "en", None),
         ("help me my child cannot breathe", "en", "KB_Choking.yaml"),
-        # Word-boundary regression (Aug 2 live incident): "دم" inside
-        # "صدمة" must NOT route a headache call to KB_Bleeding.
+        # Word-boundary regression: "دم" inside "صدمة" must NOT route a
+        # headache call to KB_Bleeding.
         ("لا لا لن تحصل اي صدمة فقط كنت نائم وصحيت ولدي وجع راس جدا رهيب", "ar", None),
         ("يوجد دم على الجرح", "ar", "KB_Bleeding.yaml"),
         ("عنده قلب يرجف", "ar", "KB_CPR.yaml"),
@@ -38,7 +38,7 @@ def test_kb_loader():
             all_pass = False
         print(f"  [{status}] match_scenario({text!r}, {lang}) = {result} (expected {expected})")
 
-    # Sticky-scenario lock (Aug 15 live call): a trauma call where the
+    # Sticky-scenario lock: a trauma call where the
     # caller later says "can't breathe" must NOT flip to KB_Choking.
     # Without the lock the shared phrase re-matches Choking every turn —
     # the lock is the fix, not removing the (legitimate) choking keyword.
@@ -74,9 +74,9 @@ def test_kb_loader():
     if not (has_triage and has_steps):
         all_pass = False
 
-    # Triage-question tracking (Aug 2 live incident): an STT-garbled triage
-    # answer once made the model repeat the identical triage question. The
-    # question is now tracked like a delivered step.
+    # Triage-question tracking: an STT-garbled triage answer once made the
+    # model repeat the identical triage question. The question is now
+    # tracked like a delivered step.
     triage_q = detect_triage_delivered("KB_Bleeding.yaml", "ar", "هل النزيف بسيط أم شديد؟")
     if triage_q == "هل النزيف بسيط أم شديد؟":
         print("  [PASS] detect_triage_delivered detects a verbatim triage re-ask")

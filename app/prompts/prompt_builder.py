@@ -1,11 +1,10 @@
 """
 Prompt assembly.
 
-Day 9 status: KB content now loads from real YAML files (see
-kb_loader.py) and is matched to the caller's actual situation via
-keyword detection, replacing the Day 1 stub that concatenated all 8
-placeholder files on every turn. Only the matched scenario's content
-is injected, keeping the prompt focused and token-cheap.
+KB content loads from real YAML files (see kb_loader.py) and is matched
+to the caller's situation via keyword detection. Only the matched
+scenario's content is injected, keeping the prompt focused and
+token-cheap.
 """
 
 from app.core.language import get_system_prompt_path

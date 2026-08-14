@@ -13,14 +13,12 @@ languages: [en, ar]
 # handled, but as a conditional first line inside each age branch rather
 # than a second triage question, to keep the one-question cap.
 #
-# --- v1.1 audit note ---
-# Added explicit keywords: field, including colloquial "something stuck in
-# throat" / "علق شي بحلقه" phrasing real callers use instead of the
-# clinical word "choking"/"اختناق" itself. Both branches already had
-# escalate:true and escalation_phrase set correctly; no schema gaps found.
-# Content spot-check: adult/child abdominal thrusts and infant back-blow +
-# chest-thrust cycle both match AHA/Red Cross technique, including the
-# CPR handoff with mouth check on airway re-open. No corrections needed.
+# Keyword coverage: includes colloquial "something stuck in throat" /
+# "علق شي بحلقه" phrasing real callers use instead of the clinical word
+# "choking"/"اختناق" itself. Both branches carry escalate:true and
+# escalation_phrase. Technique: adult/child abdominal thrusts and infant
+# back-blow + chest-thrust cycle follow AHA/Red Cross technique, including
+# the CPR handoff with mouth check on airway re-open.
 
 triage:
   en:
