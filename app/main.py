@@ -10,7 +10,6 @@ from fastapi.staticfiles import StaticFiles
 from app.core.language import get_tts_provider
 from app.core.logging_config import setup_logging
 from app.core.voice import arabic_tts_configured, prewarm_greeting_cache
-from app.routes.demo import router as demo_router
 from app.routes.telnyx_token import router as telnyx_token_router
 from app.routes.voice import router as voice_router
 from config import settings
@@ -74,12 +73,10 @@ def create_app() -> FastAPI:
     # path couldn't authenticate.
     app.include_router(telnyx_token_router)
 
-    # Browser demo page support: read-only endpoints the page polls
-    # (transcript panel) plus CORS for the GitHub Pages origin. Local
-    # testing is same-origin via the /demo static mount below, so CORS
-    # only matters when the page is served from https://hassansanjk.github.io.
-    app.include_router(demo_router)
-
+    # Browser demo page support: CORS for the GitHub Pages origin (the page
+    # fetches /telnyx-token for WebRTC calling). Local testing is same-origin
+    # via the /demo static mount below, so CORS only matters when the page is
+    # served from https://hassansanjk.github.io.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=[

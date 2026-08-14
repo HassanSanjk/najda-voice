@@ -24,19 +24,6 @@ function logTrial(event, extra) {
   );
 }
 
-function renderTrialCfg() {
-  const el = $("trialCfg");
-  if (!el) return;
-  const parts = [];
-  for (const [k, v] of Object.entries(KNOBS)) {
-    if (v) parts.push(k + "=" + v);
-  }
-  el.textContent = parts.length
-    ? "trial config: " + parts.join(" ")
-    : "trial config: baseline";
-  el.classList.remove("hidden");
-}
-
 function timeIt(label, fn) {
   if (!KNOBS.debug) return fn();
   console.time(label);
@@ -109,9 +96,6 @@ document.getElementById("backend").textContent =
 
 let client = null;
 let currentCall = null;
-let pollTimer = null;
-let renderedTurns = 0;
-let callSid = null;
 let ending = false;
 let endTimer = null;
 
@@ -222,7 +206,6 @@ function handleCallUpdate(call) {
     case "active":
       setStatus("In call");
       $("hangupBtn").classList.remove("hidden");
-      startPolling();
       scheduleAutoHangup();
       break;
     case "hangup":
@@ -273,7 +256,6 @@ function endCall() {
   currentCall = null;
 
   endTimer = setTimeout(() => {
-    stopPolling();
     setStatus("Idle");
     ending = false;
     endTimer = null;
@@ -281,7 +263,6 @@ function endCall() {
 }
 
 function teardown() {
-  stopPolling();
   if (endTimer) {
     clearTimeout(endTimer);
     endTimer = null;
@@ -304,68 +285,7 @@ function teardown() {
   $("callBtn").disabled = false;
 }
 
-async function startPolling() {
-  stopPolling();
-  callSid = null;
-  try {
-    const res = await fetch(BACKEND_URL + "/active-calls");
-    const data = await res.json();
-    callSid = data.newest || null;
-  } catch (e) {
-    callSid = null;
-  }
-  if (!callSid) return;
-  renderedTurns = 0;
-  pollTimer = setInterval(pollTranscript, 1000);
-}
-
-async function pollTranscript() {
-  if (!callSid) return;
-  try {
-    const res = await fetch(BACKEND_URL + "/transcript/" + callSid);
-    if (!res.ok) {
-      stopPolling();
-      return;
-    }
-    const data = await res.json();
-    if (data.scenario) {
-      $("scenario").textContent = "Scenario: " + data.scenario;
-      $("scenario").classList.remove("hidden");
-    }
-    const turns = data.turns || [];
-    while (renderedTurns < turns.length) {
-      appendTurn(turns[renderedTurns]);
-      renderedTurns += 1;
-    }
-  } catch (e) {
-    stopPolling();
-  }
-}
-
-function appendTurn(turn) {
-  const row = document.createElement("div");
-  row.className = "turn " + (turn.role === "assistant" ? "assistant" : "user");
-  const label = document.createElement("div");
-  label.className = "label";
-  label.textContent = turn.role === "assistant" ? "Najda" : "Caller";
-  const body = document.createElement("div");
-  body.className = "body";
-  body.textContent = turn.content;
-  row.appendChild(label);
-  row.appendChild(body);
-  $("transcript").appendChild(row);
-  $("transcript").scrollTop = $("transcript").scrollHeight;
-}
-
-function stopPolling() {
-  if (pollTimer) {
-    clearInterval(pollTimer);
-    pollTimer = null;
-  }
-}
-
 initAudioWatcher();
-renderTrialCfg();
 initDebugInstrumentation();
 logTrial("page-load");
 $("callBtn").addEventListener("click", placeCall);

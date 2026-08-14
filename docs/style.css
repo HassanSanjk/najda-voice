@@ -89,62 +89,6 @@ button {
   display: none;
 }
 
-.panel {
-  padding: 0 20px 20px;
-}
-
-.chip {
-  display: inline-block;
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  background: #eef4ff;
-  color: #1d4ed8;
-  margin-bottom: 10px;
-}
-
-#transcript {
-  border: 1px solid #e8ebef;
-  border-radius: 10px;
-  min-height: 300px;
-  max-height: 420px;
-  overflow-y: auto;
-  padding: 12px;
-  background: #fafbfc;
-}
-
-.turn {
-  margin-bottom: 10px;
-}
-
-.turn .label {
-  font-size: 11px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #9aa4af;
-  margin-bottom: 2px;
-}
-
-.turn .body {
-  display: inline-block;
-  padding: 8px 12px;
-  border-radius: 10px;
-  font-size: 14px;
-  line-height: 1.4;
-  max-width: 85%;
-}
-
-.turn.user .body {
-  background: #e8ebef;
-  color: #1c2733;
-}
-
-.turn.assistant .body {
-  background: #0b6e4f;
-  color: #fff;
-}
-
 audio {
   display: none;
 }
