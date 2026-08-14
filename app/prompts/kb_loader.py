@@ -159,8 +159,10 @@ BRANCH_DELIVERY_THRESHOLD = 0.4
 
 
 def _tokenize(text: str) -> set[str]:
-    """Normalize then split into word tokens, dropping sentence punctuation."""
-    return set(re.sub(r"[.,;!?]", " ", _normalize(text)).split())
+    """Normalize then split into word tokens, dropping sentence punctuation
+    (including the Arabic question mark U+061F, so it can never inflate
+    token-overlap scores)."""
+    return set(re.sub(r"[.,;!?\u061f]", " ", _normalize(text)).split())
 
 
 def _escalation_phrases(filename: str, language: str) -> set[str]:
@@ -298,11 +300,159 @@ def get_kb_names() -> list[str]:
     return [_load_yaml(path.name).get("emergency", path.stem) for path in _all_kb_files()]
 
 
+# ---------------------------------------------------------------------------
+# Generalized question-repeat guard (Aug 15): a caller who kept failing to
+# answer one question was asked it 4x, reworded each time (live incident).
+# The triage question already has its own guard (detect_triage_delivered);
+# this generalizes that to every question the assistant asks — triage,
+# branch follow_ups, and ad-hoc clarifying questions.
+#
+# Detection is PURE: it runs on prior assistant turns only, at prompt-build
+# time, so the caller can never hear the same question a third time. No
+# per-call state is added — nothing to clear, nothing to leak across calls.
+#
+# Why not plain Jaccard on raw tokens: short Arabic questions are dominated
+# by function words (هل/من/في...), so two DIFFERENT questions about the
+# same symptom ("...الرجل؟" vs "...اليد؟") outscore a true reworded repeat
+# ("...شاحب" vs "...أصفر"). Function words are stripped, and the hard
+# override is gated on ASK COUNT (2 prior asks => 3rd intercepted), so a
+# residual cross-question match can only trigger a harmless soft nudge —
+# never an early escalation. Known limitation: an English reworded repeat
+# that swaps the descriptive adjective ("is your leg yellow?" -> "is your
+# leg pale?") shares no content tokens and is not clustered here; it's
+# covered by the persona's one-question hard limit instead.
+# ---------------------------------------------------------------------------
+
+# Function words carrying no topic signal, in both languages (union set —
+# one matcher serves ar and en; the other language's words simply never
+# appear). Every word left in a token set is genuine content.
+_QUESTION_STOPWORDS = {
+    # Arabic
+    "هل", "من", "في", "على", "إلى", "عند", "عن", "مع", "أن", "إن",
+    "لا", "لم", "لن", "ما", "هو", "هي", "هم", "هذا", "هذه", "كان",
+    # English
+    "the", "a", "an", "is", "are", "was", "were", "do", "does", "did",
+    "have", "has", "had", "you", "your", "it", "its", "of", "to", "for",
+    "and", "or", "with", "on", "at", "in", "this", "that",
+}
+
+# Minimum content-token overlap (intersection / min-side length) for two
+# questions to count as the same cluster. Tuned on the observed Arabic
+# rewording (see test_question_repeat.py).
+QUESTION_SIMILARITY_THRESHOLD = 0.6
+# Only the last N assistant turns are examined, so an old question asked
+# again much later is treated as new.
+QUESTION_WINDOW_TURNS = 6
+# Soft nudge: inject the "don't re-ask" prompt block whenever the latest
+# assistant turn asked a question (count >= 1) — its job is to prevent the
+# 2nd ask from ever being generated.
+QUESTION_SOFT_ASKS = 1
+# Hard override: once the same cluster has been asked twice, the next
+# generation is replaced with the scenario's escalation phrase instead.
+QUESTION_HARD_ASKS = 2
+
+
+def _extract_questions(text: str) -> list[str]:
+    """Split an assistant turn's text into its individual questions.
+
+    A sentence counts as a question iff it ends with '?' or '؟'. Statements
+    and escalation phrases ("Call emergency services now.") contain no
+    question mark and are never extracted — so a stuck-question override
+    cannot re-trigger the guard on its own reply.
+    """
+    return [m.strip() for m in re.findall(r"[^؟?]+[؟?]", text)]
+
+
+def _question_tokens(question: str) -> set[str]:
+    """Token set for clustering: normalized words minus function words."""
+    return {w for w in _tokenize(question) if w not in _QUESTION_STOPWORDS}
+
+
+def _question_overlap(a: str, b: str) -> float:
+    """Content-token overlap between two questions: |A∩B| / min(|A|,|B|).
+
+    Min-side normalization (unlike Jaccard) keeps a reworded question that
+    PADS extra words — e.g. "...شاحب أو مصفر؟" — clustered with the shorter
+    original instead of being diluted by its new tokens.
+    """
+    ta, tb = _question_tokens(a), _question_tokens(b)
+    if not ta or not tb:
+        return 0.0
+    return len(ta & tb) / min(len(ta), len(tb))
+
+
+def detect_question_stuck(
+    assistant_texts: list[str],
+    window: int = QUESTION_WINDOW_TURNS,
+) -> dict | None:
+    """Return the stuck-question signal for the latest assistant turn, or
+    None when there is nothing to report.
+
+    assistant_texts: content of the assistant turns so far this call, in
+    order (derived at the call site from memory history). Deliberately a
+    pure function of plain strings so the whole guard is unit-testable
+    without stubs.
+
+    Only the last `window` turns are examined. The questions from the LATEST
+    turn are the candidates; a candidate is matched against every earlier
+    question in the window via _question_overlap. Returns
+    {"question": <latest wording>, "count": <cluster asks so far, incl. the
+    latest turn>, "overrides": <count >= QUESTION_HARD_ASKS>} for the
+    candidate with the highest count, else None.
+    """
+    texts = assistant_texts[-window:] if window else assistant_texts
+    if not texts:
+        return None
+
+    latest_texts = texts[-1]
+    candidates = _extract_questions(latest_texts)
+    if not candidates:
+        return None
+
+    prior: list[str] = []
+    for text in texts[:-1]:
+        prior.extend(_extract_questions(text))
+
+    best: tuple[str, int] | None = None
+    for cand in candidates:
+        count = 1 + sum(1 for q in prior if _question_overlap(cand, q) >= QUESTION_SIMILARITY_THRESHOLD)
+        if best is None or count > best[1]:
+            best = (cand, count)
+
+    if best is None:
+        return None
+    question, count = best
+    return {
+        "question": question,
+        "count": count,
+        "overrides": count >= QUESTION_HARD_ASKS,
+    }
+
+
+def get_escalation_phrase(filename: str, language: str) -> str | None:
+    """The escalation phrase of the first scenario branch flagged `escalate`,
+    for the given language.
+
+    Used by the stuck-question hard override so the guard speaks the
+    scenario's already-reviewed safety copy instead of new text. Returns
+    None when no branch escalates (the caller then gets a generic bilingual
+    line)."""
+    kb = _load_yaml(filename)
+    for branch_by_lang in kb.get("scenarios", {}).values():
+        branch = branch_by_lang.get(language)
+        if branch and branch.get("escalate"):
+            phrase = branch.get("escalation_phrase", "")
+            if phrase:
+                return phrase
+    return None
+
+
 def format_kb_for_prompt(
     filename: str,
     language: str,
     given_steps: set[str] | None = None,
     current_transcript: str | None = None,
+    stuck_question: str | None = None,
 ) -> str:
     """
     Formats one matched KB file into natural-language instructions for
@@ -321,6 +471,11 @@ def format_kb_for_prompt(
     current_transcript: the caller's current utterance. Used to trim
     general_knowledge down to the single closest-matching entry instead
     of injecting the full Q&A block unconditionally every turn.
+
+    stuck_question: the caller hasn't answered a question the assistant
+    already asked. Tells the model directly (rather than leaving it to
+    infer from history) to stop re-asking — the prompt-level soft nudge of
+    the generalized question-repeat guard.
     """
     kb = _load_yaml(filename)
     emergency_name = kb.get("emergency", filename)
@@ -402,6 +557,19 @@ def format_kb_for_prompt(
             )
             lines.append(f'Q: {best_match["q"]}')
             lines.append(f'A: {best_match["a"]}')
+
+    # Soft nudge of the question-repeat guard: the caller hasn't answered
+    # a question already asked. Explicit instruction (not left to the
+    # model's inference) so a reworded re-ask is suppressed at the source.
+    if stuck_question:
+        lines.append(
+            f'\nYou recently asked the caller: "{stuck_question}". If they '
+            "have already answered it, move on and do NOT ask it again, "
+            "reworded or not. If they still have not given a clear answer, "
+            "ask a short plain yes/no version once more at most — then move "
+            "on or, if they still won't answer, say the escalation phrase "
+            "from your instructions."
+        )
 
     return "\n".join(lines)
 

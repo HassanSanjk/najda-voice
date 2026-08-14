@@ -113,6 +113,15 @@ TTS_TROUBLE_TEXT_BY_LANGUAGE = {
     "en": "Sorry — I'm having audio trouble on my end. Please stay with me and say that again.",
     "ar": "عذراً، أواجه مشكلة صوتية من جهتي. ابقَ معي وأعد ما قلته من فضلك.",
 }
+# Spoken by the stuck-question hard override only when NO KB scenario is
+# matched (a matched scenario's escalation_phrase is preferred — it's
+# already-reviewed safety copy). Deliberately a STATEMENT with no question
+# mark, so the guard never re-triggers on its own reply. Arabic copy
+# pending native-speaker review (dialect register, like the fallbacks above).
+STUCK_QUESTION_FALLBACK_BY_LANGUAGE = {
+    "en": "I don't want to keep asking you the same thing. Please call emergency services now, or tell me clearly how you're feeling and I'll keep helping you.",
+    "ar": "ما أبغى أكرر عليك نفس السؤال. اتصل بالإسعاف الآن، أو اشرح لي حالتك بوضوح وأكمل معك.",
+}
 # Spoken (in English, via Aura) when the call is Arabic but Arabic TTS is
 # known-unusable — an English notice beats dead silence, and many callers
 # can switch.
@@ -807,7 +816,48 @@ async def _generate_reply(session: CallSession, utterance_received_at: float) ->
     # The current turn's transcript is the most recent user turn — added to
     # history in _flush_utterance right before this task was created.
     current_transcript = history[-1].content if history and history[-1].role == "user" else None
-    messages = build_messages(lang, history, scenario_hint, given_steps, current_transcript)
+
+    # Generalized question-repeat guard (Aug 15 live incident: a caller who
+    # kept failing to answer was asked the same question 4x, reworded).
+    # Runs BEFORE any generation/streaming, from prior assistant turns only,
+    # so a repeated question is cut off at the source — the pipelined TTS
+    # in _stream_and_queue_reply means there is no post-assembly point to
+    # intercept. On the hard override the matched scenario's own escalation
+    # phrase is spoken (already-reviewed copy; it contains no question mark,
+    # so it can't re-trigger the guard), otherwise a soft nudge rides the
+    # normal prompt build.
+    stuck = kb_loader.detect_question_stuck(
+        [t.content for t in history if t.role == "assistant"]
+    )
+    if stuck and stuck["overrides"]:
+        logger.warning(
+            f"[{call_sid}] question {stuck['question']!r} asked {stuck['count']}x — "
+            f"hard override instead of repeating"
+        )
+        fallback = (
+            kb_loader.get_escalation_phrase(scenario_hint, lang)
+            if scenario_hint
+            else None
+        ) or STUCK_QUESTION_FALLBACK_BY_LANGUAGE.get(
+            lang, STUCK_QUESTION_FALLBACK_BY_LANGUAGE["en"]
+        )
+        if lang == "ar" and _tts_health["ar_dead"]:
+            fallback_text, fallback_lang = ARABIC_TTS_DOWN_TEXT_EN, "en"
+        else:
+            fallback_text, fallback_lang = fallback, lang
+        if _lang_tts_dead(fallback_lang):
+            # Same rule as the other fallback paths: never attempt a doomed
+            # TTS call — record the turn so memory stays consistent instead.
+            logger.error(f"[{call_sid}] no working TTS for override '{fallback_lang}' — recording without audio")
+        else:
+            await _speak_with_retry(call_sid, fallback_text, fallback_lang)
+        memory.add_turn(call_sid, "assistant", fallback_text)
+        return
+
+    messages = build_messages(
+        lang, history, scenario_hint, given_steps, current_transcript,
+        stuck_question=stuck["question"] if stuck else None,
+    )
 
     full_reply, spoke_any = await _stream_and_queue_reply(call_sid, messages, lang, utterance_received_at, scenario_hint)
 

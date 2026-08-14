@@ -23,6 +23,7 @@ def load_knowledge_context(
     language: str,
     given_steps: set[str] | None = None,
     current_transcript: str | None = None,
+    stuck_question: str | None = None,
 ) -> str:
     """
     scenario_hint is a matched KB filename (e.g. "KB_Bleeding.yaml") if
@@ -30,7 +31,7 @@ def load_knowledge_context(
     """
     if scenario_hint:
         return kb_loader.format_kb_for_prompt(
-            scenario_hint, language, given_steps, current_transcript
+            scenario_hint, language, given_steps, current_transcript, stuck_question
         )
     return kb_loader.format_generic_router(language)
 
@@ -41,11 +42,12 @@ def build_messages(
     scenario_hint: str | None = None,
     given_steps: set[str] | None = None,
     current_transcript: str | None = None,
+    stuck_question: str | None = None,
 ) -> list[dict]:
     system_content = (
         load_system_prompt(language)
         + "\n\n"
-        + load_knowledge_context(scenario_hint, language, given_steps, current_transcript)
+        + load_knowledge_context(scenario_hint, language, given_steps, current_transcript, stuck_question)
     )
 
     messages = [{"role": "system", "content": system_content}]
