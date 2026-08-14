@@ -373,8 +373,12 @@ Default TTS provider for BOTH languages since Aug 2026:
   `_wav_to_mulaw_8k()` decodes via Python's `wave` module, converts to mono
   if stereo, resamples to 8kHz (reads the WAV header's real rate, so the
   English model's higher native rate is handled), and encodes as mu-law. The
-  `audioop-lts` backport in requirements.txt exists for this (`audioop` removed
-  from stdlib in Python 3.13).
+  24k→8k step uses an anti-aliased resample (`scipy.signal.resample_poly`)
+  rather than `audioop.ratecv`, which resamples with no low-pass filter and
+  folds the voices' above-4kHz content back into the band (audible static on
+  narrowband phone lines). The `audioop-lts` backport in requirements.txt
+  exists for the mu-law/PCM conversion (`audioop` removed from stdlib in
+  Python 3.13).
 - **200 character input limit.** Longer text is split at word boundaries
   (`_split_text()`) and synthesized sequentially. Sentence-level concurrency
   already happens in `voice.py`'s pipeline layer.
@@ -388,7 +392,7 @@ Default TTS provider for BOTH languages since Aug 2026:
 Orpheus WAV (variable rate, possibly stereo)
 → audioop.tomono()            # stereo → mono
 → audioop.lin2lin()           # convert to 16-bit PCM
-→ audioop.ratecv()            # resample to 8000 Hz
+→ resample_to_8k()            # scipy resample_poly — anti-aliased down to 8000 Hz
 → audioop.lin2ulaw()          # PCM → mu-law
 ```
 

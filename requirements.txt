@@ -33,3 +33,10 @@ pyyaml>=6.0
 # audioop was removed from the stdlib in Python 3.13+ (PEP 594).
 # This backport is required for mu-law <-> PCM conversion of Twilio audio.
 audioop-lts>=0.2.1; python_version >= "3.13"
+
+# Anti-aliased resampling for Orpheus WAV (24kHz) -> Telnyx PCMU (8kHz).
+# audioop.ratecv resamples with no low-pass filter, aliasing Orpheus's
+# high-frequency content back into the voice band (audible static on
+# narrowband phone lines). scipy.signal.resample_poly applies a proper
+# anti-aliasing FIR first. numpy comes in transitively.
+scipy>=1.14.0

@@ -23,9 +23,13 @@ Verified against Groq's current docs and the installed groq SDK (1.5.0):
   tags supported.
 - Orpheus supports ONLY response_format="wav" (the SDK's "mulaw" literal
   applies to the legacy playai models). We convert WAV -> PCM -> 8kHz
-  mu-law locally with audioop — the audioop-lts backport in
+  mono mu-law locally with audioop — the audioop-lts backport in
   requirements.txt exists for exactly this (audioop left the stdlib in
-  Python 3.13, PEP 594).
+  Python 3.13, PEP 594). The 24k->8k rate step uses an anti-aliased
+  resample (scipy.signal.resample_poly) instead of audioop.ratecv:
+  ratecv resamples with no low-pass filter, folding Orpheus's
+  high-frequency content (>4kHz) back into the voice band — audible as
+  static on narrowband phone lines (see resample_to_8k).
 - Input is capped at 200 characters per request. Longer text is split at
   word boundaries and synthesized sequentially in order. (Sentence-level
   concurrency already happens a layer up, in app/core/voice.py.)
@@ -39,7 +43,9 @@ import io
 import logging
 import wave
 
+import numpy as np
 from groq import AsyncGroq
+from scipy.signal import resample_poly
 
 from config import settings
 
@@ -95,6 +101,24 @@ def _split_text(text: str, limit: int = MAX_INPUT_CHARS) -> list[str]:
     return pieces
 
 
+def resample_to_8k(pcm_bytes: bytes, orig_rate: int) -> bytes:
+    """16-bit mono PCM at orig_rate -> 16-bit mono PCM at 8kHz with an
+    anti-aliasing filter.
+
+    audioop.ratecv (the previous approach) resamples without a low-pass
+    filter, so a 3:1 downsample folds every component above 4kHz back
+    into the 0-4kHz voice band — Orpheus voices carry a few percent of
+    their energy above 4kHz, which came out as audible hiss/static on
+    narrowband phone lines (masked on the browser demo path).
+    resample_poly applies a proper low-pass FIR before decimating.
+    """
+    if orig_rate == 8000:
+        return pcm_bytes
+    pcm = np.frombuffer(pcm_bytes, dtype=np.int16)
+    resampled = resample_poly(pcm, TARGET_RATE, orig_rate)
+    return np.rint(resampled).astype(np.int16).tobytes()
+
+
 def _wav_to_mulaw_8k(wav_bytes: bytes) -> bytes:
     """Decodes a PCM WAV of any common rate/channels/width into raw
     headerless 8kHz mono mu-law, the format Telnyx plays directly."""
@@ -109,7 +133,7 @@ def _wav_to_mulaw_8k(wav_bytes: bytes) -> bytes:
     if width != 2:
         pcm = audioop.lin2lin(pcm, width, 2)
     if rate != TARGET_RATE:
-        pcm, _ = audioop.ratecv(pcm, 2, 1, rate, TARGET_RATE, None)
+        pcm = resample_to_8k(pcm, rate)
     return audioop.lin2ulaw(pcm, 2)
 
 
