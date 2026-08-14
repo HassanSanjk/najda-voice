@@ -26,9 +26,8 @@ Changes:
   UtteranceEnd never came" case it existed for.
 
 Language auto-detection (dual-stream arbitration):
-- Verified against Deepgram's current docs (July 2026): Nova-3's
-  `language=multi` code-switching mode covers en/es/fr/de/hi/ru/pt/ja/
-  it/nl ONLY — Arabic is NOT in the multi set. Nova-3 Arabic is a
+- Nova-3's `language=multi` code-switching mode covers en/es/fr/de/hi/
+  ru/pt/ja/it/nl ONLY — Arabic is NOT in the multi set. Nova-3 Arabic is a
   separate *monolingual* model (`ar` + 16 dialect codes). So genuine
   en/ar auto-detection cannot happen inside a single STT connection,
   and the previous code (open with `language="en"`, read a `languages`
@@ -58,6 +57,7 @@ First-turn latency:
 
 import asyncio
 import logging
+import re
 import time
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
@@ -760,6 +760,35 @@ def _sentence_speakable(sentence: str, lang: str) -> bool:
     return ratio >= 0.5 if lang == "ar" else ratio <= 0.5
 
 
+_SELF_NARRATION_EN = (
+    r"\bI(?:'m| am)? (?:nodding|smiling|sighing|waving|shrugging|shaking my head|taking a deep breath)\b",
+    r"\bI (?:nod|smile|sigh|wave|shrug)\b",
+)
+
+_SELF_NARRATION_AR = (
+    r"\bأومئ\b",
+    r"\bأهز رأسي\b",
+    r"\bأبتسم\b",
+    r"\bأتنهد\b",
+    r"\bأنظر\b",
+    r"\bأرفع يدي\b",
+    r"\bأمسك\b",
+    r"\bأجلس\b",
+    r"\bأقف\b",
+)
+
+
+def _is_self_narration(sentence: str, lang: str) -> bool:
+    """True if the sentence narrates the assistant's own body language
+    ("I'm nodding" / "أومئ برأسي") — a disembodied voice has no body to
+    describe, and speaking it confuses the caller. Matches first-person
+    forms only (the Arabic أ- prefix), so caller-directed imperatives
+    like "ارفع يدك" never match. "أرى" (I see) is deliberately absent:
+    "أرى أن النزيف شديد" is useful natural speech, not narration."""
+    patterns = _SELF_NARRATION_AR if lang == "ar" else _SELF_NARRATION_EN
+    return any(re.search(p, sentence) for p in patterns)
+
+
 def _extract_complete_sentences(buf: str) -> tuple[list[str], str]:
     sentences = []
     current = ""
@@ -971,6 +1000,12 @@ async def _stream_and_queue_reply(
             # the TTS API rejected (400: needs at least one letter/digit).
             # Unspeakable fragments are dropped from BOTH audio and memory.
             logger.warning(f"[{call_sid}] dropping unspeakable/wrong-script sentence: {sentence!r}")
+            return
+        if _is_self_narration(sentence, lang):
+            # Spoken-form persona leak: the model narrates its own body
+            # language ("I'm nodding" / "أومئ برأسي") even though it's a
+            # disembodied voice. Dropped from BOTH audio and memory.
+            logger.warning(f"[{call_sid}] dropping self-narrated action sentence: {sentence!r}")
             return
         full_reply_parts.append(sentence)
         sentence_count += 1

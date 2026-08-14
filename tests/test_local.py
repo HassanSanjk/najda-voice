@@ -215,6 +215,37 @@ def test_fastapi_startup():
     return passed
 
 
+def test_self_narration_filter():
+    print("\n" + "=" * 60)
+    print("TEST 6: Self-narration filter")
+    print("=" * 60)
+    from app.core.voice import _is_self_narration
+
+    cases = [
+        ("أومئ برأسي", "ar", True),
+        ("أبتسم بهدوء", "ar", True),
+        ("I'm nodding to reassure you", "en", True),
+        ("I smile and take a deep breath", "en", True),
+        ("ارفع يدك لأعلى", "ar", False),
+        ("ابتسم واهدأ", "ar", False),
+        ("أرى أن النزيف شديد", "ar", False),
+        ("ضع ضمادة على الجرح", "ar", False),
+        ("apply firm pressure", "en", False),
+        ("raise your hand slowly", "en", False),
+    ]
+
+    all_pass = True
+    for sentence, lang, expected in cases:
+        result = _is_self_narration(sentence, lang)
+        status = "PASS" if result == expected else "FAIL"
+        if status == "FAIL":
+            all_pass = False
+        print(f"  [{status}] _is_self_narration({sentence!r}, {lang!r}) = {result} (expected {expected})")
+
+    print(f"\n  TEST 6: {'PASSED' if all_pass else 'FAILED'}")
+    return all_pass
+
+
 if __name__ == "__main__":
     results = []
     results.append(("KB Loader", test_kb_loader()))
@@ -222,6 +253,7 @@ if __name__ == "__main__":
     results.append(("Groq LLM", test_groq_llm()))
     results.append(("Groq TTS (en)", test_groq_tts_en()))
     results.append(("FastAPI Startup", test_fastapi_startup()))
+    results.append(("Self-Narration Filter", test_self_narration_filter()))
 
     print("\n" + "=" * 60)
     print("SUMMARY")
