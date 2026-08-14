@@ -714,7 +714,13 @@ async def _flush_utterance(session: CallSession) -> None:
 
     lang = session.language or "en"
 
-    matched = kb_loader.match_scenario(full_text, lang)
+    # Scenario matching is STICKY once a scenario has been locked for this
+    # call: pass the existing lock in so a later keyword hit on a different
+    # KB file (e.g. "can't breathe" re-matching KB_Choking after a trauma
+    # call was already locked) cannot reclassify the emergency mid-call.
+    matched = kb_loader.match_scenario(
+        full_text, lang, already_locked=_current_scenario.get(call_sid)
+    )
     if matched:
         if _current_scenario.get(call_sid) != matched:
             logger.info(f"[{call_sid}] scenario matched: {matched}")

@@ -272,12 +272,27 @@ def _keyword_matches(kw: str, normalized_text: str) -> bool:
     return bool(pattern.search(normalized_text))
 
 
-def match_scenario(transcript: str, language: str) -> str | None:
+def match_scenario(
+    transcript: str,
+    language: str,
+    already_locked: str | None = None,
+) -> str | None:
     """
     Returns the matched KB filename (e.g. "KB_Bleeding.yaml") if the
     transcript mentions a known emergency, else None. First match wins
     if multiple scenarios happen to match the same transcript.
+
+    already_locked: the scenario already locked for this call (from the
+    caller's first match). Once a scenario has been matched, it is STICKY
+    for the rest of the call — a later keyword hit on another scenario
+    (e.g. a trauma call where the caller then says "can't breathe",
+    matching KB_Choking) must NOT reclassify the emergency. Re-running
+    the matcher per utterance without this lock let shared keywords
+    hijack an established scenario mid-call (Aug 15 live call).
     """
+    if already_locked is not None:
+        return already_locked
+
     text = _normalize(transcript)
 
     for path in _all_kb_files():

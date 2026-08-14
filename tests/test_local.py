@@ -38,6 +38,34 @@ def test_kb_loader():
             all_pass = False
         print(f"  [{status}] match_scenario({text!r}, {lang}) = {result} (expected {expected})")
 
+    # Sticky-scenario lock (Aug 15 live call): a trauma call where the
+    # caller later says "can't breathe" must NOT flip to KB_Choking.
+    # Without the lock the shared phrase re-matches Choking every turn —
+    # the lock is the fix, not removing the (legitimate) choking keyword.
+    locked_hijack = match_scenario(
+        "I can't breathe properly", "en", already_locked="KB_Trauma.yaml"
+    )
+    if locked_hijack == "KB_Trauma.yaml":
+        print("  [PASS] locked scenario is not hijacked by a later keyword hit (trauma stays trauma)")
+    else:
+        all_pass = False
+        print(f"  [FAIL] locked scenario hijacked: {locked_hijack!r}")
+
+    first_match = match_scenario("I was hit by a car", "en")
+    second_match = match_scenario("I can't breathe properly", "en", already_locked=first_match)
+    if first_match == "KB_Trauma.yaml" and second_match == "KB_Trauma.yaml":
+        print("  [PASS] Call 3 sequence: trauma lock survives the 'can't breathe' utterance")
+    else:
+        all_pass = False
+        print(f"  [FAIL] Call 3 sequence: first={first_match!r} second={second_match!r}")
+
+    held_without_match = match_scenario("hello how are you", "en", already_locked="KB_Burns.yaml")
+    if held_without_match == "KB_Burns.yaml":
+        print("  [PASS] locked scenario holds even when the new utterance matches nothing")
+    else:
+        all_pass = False
+        print(f"  [FAIL] locked scenario lost on non-matching utterance: {held_without_match!r}")
+
     kb = format_kb_for_prompt("KB_Bleeding.yaml", "en")
     has_triage = "triage" in kb.lower() or "question" in kb.lower() or "bleeding" in kb.lower()
     has_steps = "step" in kb.lower() or "pressure" in kb.lower() or "1." in kb or "2." in kb
