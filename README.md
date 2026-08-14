@@ -105,14 +105,19 @@ najda-voice/
 │       └── kb_loader.py        — YAML KB loader + scenario matching
 │
 ├── knowledge/
-│   ├── KB_Bleeding.yaml        — 8 first-aid scenarios
+│   ├── KB_AllergicReactions.yaml — 13 first-aid scenarios
+│   ├── KB_Bleeding.yaml
 │   ├── KB_Burns.yaml
 │   ├── KB_Choking.yaml
 │   ├── KB_CPR.yaml
+│   ├── KB_Drowning.yaml
 │   ├── KB_ElectricShock.yaml
 │   ├── KB_Fractures.yaml
+│   ├── KB_Poisoning.yaml
+│   ├── KB_Seizures.yaml
 │   ├── KB_SnakeBites.yaml
-│   └── KB_AllergicReactions.yaml
+│   ├── KB_Stroke.yaml
+│   └── KB_Trauma.yaml
 │
 ├── scripts/
 │   ├── start.sh                — Docker Compose startup + health wait
@@ -270,7 +275,7 @@ Only the matched scenario's KB content is injected — the generic router
 
 ### `app/prompts/kb_loader.py` — Knowledge Base Loader
 
-Loads 8 YAML files from `knowledge/`, each following this schema:
+Loads 13 YAML files from `knowledge/`, each following this schema:
 
 ```yaml
 emergency: bleeding
@@ -289,7 +294,9 @@ general_knowledge:
       a: "Only if direct pressure is not working..."
 ```
 
-**Scenario matching** is plain substring search against keyword lists. Each
+**Scenario matching** is keyword-based: each keyword is matched as a whole
+word via a compiled `\b`-anchored regex (Arabic text is orthographically
+normalized first), not raw substring search. Each
 KB file can define its own `keywords` field; files without one fall back to
 `KEYWORDS_FALLBACK` (keyed by `emergency` name). First match wins — files
 are sorted case-insensitively to guarantee the same order on Windows and
@@ -707,14 +714,19 @@ zero TTS quota.
 
 | File | Emergency | Triage question |
 |------|-----------|-----------------|
+| `KB_AllergicReactions.yaml` | allergic_reactions | Trouble breathing or swallowing? |
 | `KB_Bleeding.yaml` | bleeding | Minor or severe? |
 | `KB_Burns.yaml` | burns | Burn type/size? |
 | `KB_Choking.yaml` | choking | Can they cough or speak? |
 | `KB_CPR.yaml` | cpr | Are they breathing? |
+| `KB_Drowning.yaml` | drowning | Breathing on their own or not at all? |
 | `KB_ElectricShock.yaml` | electric_shock | Still in contact with source? |
 | `KB_Fractures.yaml` | fractures | Bone visible or deformed? |
+| `KB_Poisoning.yaml` | poisoning | Awake and breathing, or unconscious? |
+| `KB_Seizures.yaml` | seizures | Known history and under five minutes? |
 | `KB_SnakeBites.yaml` | snake_bites | Identify the snake? |
-| `KB_AllergicReactions.yaml` | allergic_reactions | Trouble breathing? |
+| `KB_Stroke.yaml` | stroke | Conscious and breathing normally? |
+| `KB_Trauma.yaml` | trauma | Scene safe, or immediate danger? |
 
 Each file has an English and Arabic section. The `escalate: true` flag
 triggers the forced escalation phrase (e.g. "اتصل بالإسعاف الآن").
@@ -726,7 +738,7 @@ python tests/test_local.py
 ```
 
 5 tests:
-1. **KB Loader** — keyword matching for 6 scenarios + formatting output
+1. **KB Loader** — keyword matching for 13 scenarios + formatting output
 2. **Prompt Builder** — system prompt includes scenario KB + generic router + Arabic
 3. **Groq LLM** — actual streaming completion (requires GROQ_API_KEY)
 4. **Deepgram TTS** — actual synthesis (requires DEEPGRAM_API_KEY)
