@@ -20,12 +20,16 @@ guard it, and neither is sufficient by itself:
      page source. This stops blind bots/scanners probing for open
      endpoints, not someone who actually looks.
   2. A per-IP rate limit (TELNYX_TOKEN_RATE_LIMIT_PER_MINUTE), which caps
-     blast radius even if the secret leaks or is guessed. Requires the
-     reverse proxy to forward the real client IP (X-Forwarded-For) and
-     uvicorn to trust it (run with --proxy-headers, or add Starlette's
-     ProxyHeadersMiddleware) — otherwise every request appears to come
-     from the proxy's own address and this limiter silently does nothing.
-     Confirm this against real traffic before relying on it.
+     blast radius even if the secret leaks or is guessed. Client IP comes
+     from request.client.host, which uvicorn's own ProxyHeadersMiddleware
+     (active by default, trusted_hosts="127.0.0.1") has already rewritten
+     from X-Forwarded-For whenever the connecting peer is trusted. We must
+     NOT read the raw X-Forwarded-For header ourselves — that bypasses the
+     trust check and is trivially spoofable. If the real peer address
+     isn't 127.0.0.1 the rewrite simply isn't applied and every request
+     shares one bucket (rate limiting becomes ineffective, but never
+     bypassable) — fixable by setting FORWARDED_ALLOW_IPS to whatever the
+     actual peer is.
 
 The backstop that actually matters most, independent of both layers above:
 restrict the Telnyx Outbound Voice Profile's destination allowlist to only
@@ -58,12 +62,15 @@ MAX_TRACKED_IPS = 1000  # opportunistic cleanup trigger, not a hard cap
 
 
 def _client_ip(request: Request) -> str:
-    # Prefer the proxy-forwarded address over the raw socket peer, which
-    # would otherwise always be Caddy's own loopback address (see the
-    # module docstring's --proxy-headers caveat).
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    # uvicorn's ProxyHeadersMiddleware is already active by default
+    # (proxy_headers=True, trusting 127.0.0.1) and has rewritten
+    # request.client.host from X-Forwarded-For — but ONLY when the
+    # connecting peer is in its trusted set. READING THE RAW HEADER
+    # HERE BYPASSES THAT TRUST CHECK and lets a caller spoof a client IP
+    # to evade the rate limit. Use request.client.host, which is either
+    # the real client IP (peer trusted) or the proxy's address (peer not
+    # trusted -> everyone shares one bucket, merely ineffective, not
+    # exploitable).
     return request.client.host if request.client else "unknown"
 
 

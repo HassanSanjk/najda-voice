@@ -76,10 +76,13 @@ class Settings(BaseSettings):
     #      configured there is readable by anyone who views the page
     #      source. This stops blind bots/scanners, not a targeted person.
     #   2. Per-IP rate limit — caps blast radius even if the secret leaks.
-    #      Requires the reverse proxy to forward the real client IP and
-    #      uvicorn to trust it (--proxy-headers) — verify this against
-    #      real traffic, or every request shares one IP and this is a
-    #      no-op. See app/routes/telnyx_token.py for the actual backstop
+    #      Client IP is request.client.host, already rewritten by uvicorn's
+    #      default-active ProxyHeadersMiddleware (trusted_hosts=127.0.0.1);
+    #      we never read the raw X-Forwarded-For header ourselves (that
+    #      would be spoofable). If the real peer isn't 127.0.0.1, set
+    #      FORWARDED_ALLOW_IPS to it or everyone shares one bucket —
+    #      a tuning/accuracy issue, not a bypass. See
+    #      app/routes/telnyx_token.py for the actual backstop
     #      (restricting the Telnyx Outbound Voice Profile's destination
     #      allowlist + a spend limit — independent of both layers here).
     demo_token_secret: str = ""
