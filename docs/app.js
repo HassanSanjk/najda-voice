@@ -1,6 +1,14 @@
 // Destination = the app's DID (config.telnyx_phone_number).
 const DESTINATION = "+13464720939";
 
+// Must match DEMO_TOKEN_SECRET in the server's .env exactly. NOTE: this
+// file is served publicly (GitHub Pages) — anyone who views the page
+// source can read this value. It's a deterrent against blind bots/
+// scanners hitting /telnyx-token directly, not real secrecy. See
+// app/routes/telnyx_token.py for what actually limits abuse (rate limit
+// + the Telnyx Outbound Voice Profile destination/spend restriction).
+const DEMO_TOKEN = "hassonaz";
+
 const q = new URLSearchParams(location.search);
 const num = (v) => {
   const n = parseInt(v, 10);
@@ -122,7 +130,9 @@ async function placeCall() {
   $("callBtn").disabled = true;
   setStatus("Fetching token…");
   try {
-    const res = await fetch(BACKEND_URL + "/telnyx-token");
+    const res = await fetch(BACKEND_URL + "/telnyx-token", {
+      headers: { "X-Najda-Demo-Token": DEMO_TOKEN },
+    });
     const data = await res.json();
     if (!data.token) throw new Error(data.error || "no token returned");
 

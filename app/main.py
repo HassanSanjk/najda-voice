@@ -49,6 +49,13 @@ async def lifespan(app: FastAPI):
         )
     logger.info(f"English TTS provider: {get_tts_provider('en')}")
 
+    if not settings.demo_token_secret:
+        logger.warning(
+            "DEMO_TOKEN_SECRET is not set — /telnyx-token will refuse ALL "
+            "requests (fails closed, by design) until it's set in .env. "
+            "/voice (real phone calls) is unaffected."
+        )
+
     # Pre-synthesize the fixed opening line(s) so the first call doesn't
     # pay a TTS round trip for a greeting that never changes. Non-fatal
     # if it fails — the greeting also lazily caches on first call.

@@ -1,17 +1,44 @@
 """
 Telnyx WebRTC token endpoint.
 
-Generates a short-lived JWT that allows the browser caller (telnyx_caller.html)
+Generates a short-lived JWT that allows the browser caller (docs/app.js)
 to authenticate with Telnyx's WebRTC platform and place a call.
 
 Requires a Telnyx telephony credential ID. Set TELNYX_TELEPHONY_CREDENTIAL_ID
 in .env after creating it in Telnyx Mission Control:
     API Keys -> Telephony Credentials -> Create credential -> copy the ID
+
+SECURITY: this endpoint mints real, billable call tokens and was reachable
+on the public internet with zero auth for a period after deployment — any
+direct request (curl, not just a browser) could mint a token; CORS only
+restricts browser-originated cross-origin calls, not this. Two layers now
+guard it, and neither is sufficient by itself:
+
+  1. A shared secret in the X-Najda-Demo-Token header (DEMO_TOKEN_SECRET).
+     Weak on its own — docs/app.js is a public static file (GitHub Pages),
+     so the value configured there is readable by anyone who views the
+     page source. This stops blind bots/scanners probing for open
+     endpoints, not someone who actually looks.
+  2. A per-IP rate limit (TELNYX_TOKEN_RATE_LIMIT_PER_MINUTE), which caps
+     blast radius even if the secret leaks or is guessed. Requires the
+     reverse proxy to forward the real client IP (X-Forwarded-For) and
+     uvicorn to trust it (run with --proxy-headers, or add Starlette's
+     ProxyHeadersMiddleware) — otherwise every request appears to come
+     from the proxy's own address and this limiter silently does nothing.
+     Confirm this against real traffic before relying on it.
+
+The backstop that actually matters most, independent of both layers above:
+restrict the Telnyx Outbound Voice Profile's destination allowlist to only
+this project's own DID, and set a spend limit on the API key, so a leaked
+or force-minted token still can't place arbitrary billed calls.
 """
 
 import logging
+import secrets
+import time
+from collections import defaultdict
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Header, HTTPException, Request
 from telnyx import AsyncTelnyx
 
 from config import settings
@@ -22,6 +49,38 @@ router = APIRouter()
 
 _telnyx_client: AsyncTelnyx | None = None
 
+# Simple bounded in-memory per-IP request log — same pattern as the rest
+# of this project's module-level state (_tts_health, _active_streams).
+# Not multi-process safe; fine for this project's single-instance deploy.
+_request_times: dict[str, list[float]] = defaultdict(list)
+RATE_LIMIT_WINDOW_S = 60.0
+MAX_TRACKED_IPS = 1000  # opportunistic cleanup trigger, not a hard cap
+
+
+def _client_ip(request: Request) -> str:
+    # Prefer the proxy-forwarded address over the raw socket peer, which
+    # would otherwise always be Caddy's own loopback address (see the
+    # module docstring's --proxy-headers caveat).
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _rate_limited(ip: str) -> bool:
+    now = time.monotonic()
+    window_start = now - RATE_LIMIT_WINDOW_S
+    recent = [t for t in _request_times[ip] if t > window_start]
+    recent.append(now)
+    _request_times[ip] = recent
+
+    if len(_request_times) > MAX_TRACKED_IPS:
+        for key in list(_request_times):
+            if not any(t > window_start for t in _request_times[key]):
+                _request_times.pop(key, None)
+
+    return len(recent) > settings.telnyx_token_rate_limit_per_minute
+
 
 def _get_client() -> AsyncTelnyx:
     global _telnyx_client
@@ -31,7 +90,29 @@ def _get_client() -> AsyncTelnyx:
 
 
 @router.get("/telnyx-token")
-async def get_webrtc_token():
+async def get_webrtc_token(
+    request: Request,
+    x_najda_demo_token: str | None = Header(default=None),
+):
+    if not settings.demo_token_secret:
+        # Fail CLOSED, never open: an unset secret must never silently
+        # mean "anyone may call this" — that was the exact bug this fixes.
+        logger.error(
+            "DEMO_TOKEN_SECRET is not set — refusing all /telnyx-token "
+            "requests until it's configured in .env"
+        )
+        raise HTTPException(status_code=503, detail="token endpoint not configured")
+
+    if not x_najda_demo_token or not secrets.compare_digest(
+        x_najda_demo_token, settings.demo_token_secret
+    ):
+        raise HTTPException(status_code=401, detail="invalid or missing token")
+
+    ip = _client_ip(request)
+    if _rate_limited(ip):
+        logger.warning(f"/telnyx-token rate-limited for {ip}")
+        raise HTTPException(status_code=429, detail="too many requests, try again shortly")
+
     credential_id = settings.telnyx_telephony_credential_id
     if not credential_id:
         return {"error": "TELNYX_TELEPHONY_CREDENTIAL_ID not set in .env"}

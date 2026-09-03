@@ -64,6 +64,23 @@ class Settings(BaseSettings):
     # excluded (WebSocket; idle covered by app-level keepalive/timeouts).
     provider_timeout_seconds: float = 60.0
 
+    # /telnyx-token guard. This endpoint mints real, billable WebRTC call
+    # tokens and was live on the public internet with zero auth for a
+    # period after deployment. Two layers, neither sufficient alone:
+    #   1. Shared secret (X-Najda-Demo-Token header). WEAK on its own:
+    #      docs/app.js is a public static file (GitHub Pages) — the value
+    #      configured there is readable by anyone who views the page
+    #      source. This stops blind bots/scanners, not a targeted person.
+    #   2. Per-IP rate limit — caps blast radius even if the secret leaks.
+    #      Requires the reverse proxy to forward the real client IP and
+    #      uvicorn to trust it (--proxy-headers) — verify this against
+    #      real traffic, or every request shares one IP and this is a
+    #      no-op. See app/routes/telnyx_token.py for the actual backstop
+    #      (restricting the Telnyx Outbound Voice Profile's destination
+    #      allowlist + a spend limit — independent of both layers here).
+    demo_token_secret: str = ""
+    telnyx_token_rate_limit_per_minute: int = 5
+
     # App
     app_env: str = "development"
     public_base_url: str = ""
