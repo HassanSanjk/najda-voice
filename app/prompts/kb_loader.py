@@ -6,12 +6,12 @@ KB_Bleeding.yaml: emergency, languages, triage, scenarios (branch_key ->
 per-language steps/escalate/follow_up), general_knowledge (per-language
 q/a list).
 
-SCENARIO MATCHING: checks each KB file's own `keywords: {en: [...], ar:
-[...]}` field first if present. Falls back to KEYWORDS_FALLBACK below
-(keyed by the file's `emergency` field) otherwise -- meaning matching
-works today without requiring every file to have a keywords field yet.
-If matching misses on real call transcripts during testing, adding an
-explicit `keywords` field per file is the cleaner long-term fix.
+SCENARIO MATCHING: every KB file defines its own `keywords: {en: [...],
+ar: [...]}` field (all 13 files audited and confirmed as of this cycle —
+see git history if that ever needs re-verifying). There is no fallback
+dict anymore; a file with an empty or missing `keywords` field simply
+never matches. If matching misses on real call transcripts, expand that
+file's own `keywords` list directly.
 
 LIMITATION: matching is word-boundary based, not tokenized, and
 deliberately misses inflected/cliticized forms (Arabic definite-article
@@ -33,56 +33,6 @@ import yaml
 logger = logging.getLogger(__name__)
 
 KNOWLEDGE_DIR = Path(__file__).parent.parent.parent / "knowledge"
-
-# Used only for KB files that don't define their own `keywords` field.
-# Not exhaustive -- expand based on what real callers actually say.
-# Single-word keywords, not phrases — avoids word-order sensitivity and
-# contraction misses ("can't" vs "cannot", "broken arm" vs "arm is broken").
-# Normalization (apostrophe removal) happens before matching so both
-# forms hit the same entries.
-KEYWORDS_FALLBACK = {
-    "bleeding": {
-        "en": ["bleed", "bleeding", "blood", "cut", "wound", "gash"],
-        "ar": ["نزيف", "دم", "جرح", "قطع"],
-    },
-    "burns": {
-        "en": ["burn", "burned", "burnt", "scald", "fire"],
-        "ar": ["حرق", "حروق", "احتراق"],
-    },
-    # NOTE: "breathing"/"تنفس" deliberately NOT keywords for choking or cpr —
-    # breathing is mentioned in nearly every emergency ("he's breathing",
-    # "not breathing normally"), so it routed unrelated emergencies (observed
-    # live: a car-crash victim got choking/Heimlich guidance) to whichever of
-    # the two files happened to sort first — which even differs by OS.
-    "choking": {
-        # "cannot breathe" is a phrase, but it's contraction-stable: the
-        # normalizer maps "can't breathe" to the same string before matching.
-        "en": ["choke", "choking", "airway", "throat", "heimlich", "cannot breathe"],
-        "ar": ["اختناق", "شرقة", "يختنق", "غصة"],
-    },
-    "cpr": {
-        "en": ["pulse", "unconscious", "cpr", "heart", "collapsed"],
-        # "مغمى/أغمي عليه" = colloquial "passed out/unconscious" — what real
-        # callers actually say (observed live, repeatedly).
-        "ar": ["نبض", "فاقد الوعي", "قلب", "إنعاش", "مغمى", "أغمي"],
-    },
-    "electric_shock": {
-        "en": ["electric", "shock", "electrocuted", "power"],
-        "ar": ["كهرباء", "صعقة", "صعق"],
-    },
-    "fractures": {
-        "en": ["broken", "fracture", "break", "snapped", "bone"],
-        "ar": ["كسر", "عظم"],
-    },
-    "snake_bites": {
-        "en": ["snake", "bite", "bit", "bitten"],
-        "ar": ["ثعبان", "لدغة", "عضة"],
-    },
-    "allergic_reactions": {
-        "en": ["allergic", "allergy", "anaphylaxis", "hives", "epipen"],
-        "ar": ["حساسية", "تحسس", "تورم"],
-    },
-}
 
 
 @lru_cache(maxsize=None)
@@ -288,6 +238,13 @@ def match_scenario(
     matching KB_Choking) must NOT reclassify the emergency. Re-running
     the matcher per utterance without this lock let shared keywords
     hijack an established scenario mid-call.
+
+    KNOWN TRADEOFF, accepted: this also means a caller describing two
+    genuinely separate injuries in one call (e.g. a cut AND a broken arm
+    from the same accident) only ever gets scripted KB content for
+    whichever was mentioned first — the second injury never gets its own
+    branch/steps for the rest of that call. This is the accepted cost of
+    fixing the hijacking bug above, not an oversight.
     """
     if already_locked is not None:
         return already_locked
@@ -296,11 +253,8 @@ def match_scenario(
 
     for path in _all_kb_files():
         kb = _load_yaml(path.name)
-        emergency_name = kb.get("emergency", path.stem)
 
-        own_keywords = kb.get("keywords", {}).get(language, [])
-        fallback_keywords = KEYWORDS_FALLBACK.get(emergency_name, {}).get(language, [])
-        keywords = own_keywords or fallback_keywords
+        keywords = kb.get("keywords", {}).get(language, [])
 
         for kw in keywords:
             if _keyword_matches(kw, text):

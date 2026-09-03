@@ -300,8 +300,9 @@ general_knowledge:
 **Scenario matching** is keyword-based: each keyword is matched as a whole
 word via a compiled `\b`-anchored regex (Arabic text is orthographically
 normalized first), not raw substring search. Each
-KB file can define its own `keywords` field; files without one fall back to
-`KEYWORDS_FALLBACK` (keyed by `emergency` name). First match wins — files
+KB file always defines its own `keywords` field (per language); there
+is no fallback dict anymore — a file with an empty or missing `keywords`
+field simply never matches. First match wins — files
 are sorted case-insensitively to guarantee the same order on Windows and
 Linux (an OS divergence that caused `KB_Choking` vs `KB_CPR` to match
 differently across environments in live testing).

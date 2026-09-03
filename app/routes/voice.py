@@ -33,7 +33,6 @@ async def incoming_call(request: Request):
 
     texml = f"""<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-    <Say>Connecting you to Najda Voice.</Say>
     <Connect>
         <Stream url="{ws_url}"
                 track="both_tracks"
@@ -149,7 +148,7 @@ async def _send_media(websocket: WebSocket, _stream_id: str, audio_bytes: bytes)
         except Exception:
             logger.exception(f"failed to send audio frame back to Telnyx")
             return
-        expected_next = start + (i + 2) * FRAME_INTERVAL
+        expected_next = start + (i + 1) * FRAME_INTERVAL
         now = loop.time()
         delay = expected_next - now
         if delay > 0:

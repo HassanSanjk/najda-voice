@@ -329,8 +329,10 @@ async def handle_call_start(session: CallSession, send_audio: SendAudioFn) -> No
         )
 
     streams: dict[str, DeepgramSTTStream] = {}
-    for stt_lang in stt_langs:
-        stream = await _connect_stt_with_retry(call_sid, stt_lang)
+    connect_results = await asyncio.gather(
+        *(_connect_stt_with_retry(call_sid, stt_lang) for stt_lang in stt_langs)
+    )
+    for stt_lang, stream in zip(stt_langs, connect_results):
         if stream:
             streams[stt_lang] = stream
 

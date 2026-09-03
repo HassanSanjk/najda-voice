@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     # English Aura-2 TTS voice (Deepgram). Used when TTS_PROVIDER_EN=deepgram
     # (Aura-2 has no Arabic voice — English only). English defaults to Groq
     # Orpheus (see TTS_PROVIDER_EN below).
+    # NOTE: "orpheus" here is a real, separate Deepgram Aura-2 voice name —
+    # confirmed against Deepgram's docs. It has NO relation to Groq/Canopy
+    # Labs' "Orpheus" TTS model used elsewhere in this project. Coincidental
+    # naming overlap only; do not "fix" this thinking it's a copy-paste bug.
     deepgram_tts_model_en: str = "aura-2-orpheus-en"
     # Arabic STT dialect code for Nova-3 (default "ar" = pan-Arab/MSA).
     # Bias recognition toward the caller's dialect with e.g. ar-EG, ar-SA,
